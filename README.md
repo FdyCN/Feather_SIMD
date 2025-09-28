@@ -16,10 +16,6 @@ tiny-simd-engine/
 │   ├── unit_tests/             # 单元测试(googletest)
 │   ├── benchmarks/             # 性能基准测试
 │   └── opencv_compare/         # 与OpenCV对比测试
-├── examples/
-│   ├── basic_usage.cpp         # 基础使用示例
-│   ├── cv_demo.cpp             # CV算子演示
-│   └── performance_demo.cpp    # 性能对比演示
 └── docs/
     └── design.md               # 设计文档
 ```
