@@ -150,7 +150,8 @@ public:
     static constexpr size_type size_value = N;
 
 #if defined(TINY_SIMD_ARM_NEON)
-    static constexpr bool is_simd_optimized = (N == 4 && std::is_same<T, float>::value) ||
+    static constexpr bool is_simd_optimized = (N == 2 && std::is_same<T, float>::value) ||
+                                             (N == 4 && std::is_same<T, float>::value) ||
                                              (N == 4 && std::is_same<T, int32_t>::value) ||
                                              (N == 4 && std::is_same<T, uint32_t>::value) ||
                                              (N == 8 && std::is_same<T, int16_t>::value) ||
@@ -568,6 +569,40 @@ inline simd_vector<int8_t, N> sub_sat(const simd_vector<int8_t, N>& a, const sim
     return result;
 }
 
+//=============================================================================
+// 窄化饱和函数 (Narrowing Saturation) - 从宽类型饱和转换回窄类型
+//=============================================================================
+
+// 从加宽结果饱和转换回原类型
+template<size_t N>
+inline simd_vector<uint8_t, N> narrow_sat(const simd_vector<uint16_t, N>& wide_result) {
+    simd_vector<uint8_t, N> result;
+    for (size_t i = 0; i < N; ++i) {
+        result[i] = (wide_result[i] > 255) ? 255 : static_cast<uint8_t>(wide_result[i]);
+    }
+    return result;
+}
+
+template<size_t N>
+inline simd_vector<uint16_t, N> narrow_sat(const simd_vector<uint32_t, N>& wide_result) {
+    simd_vector<uint16_t, N> result;
+    for (size_t i = 0; i < N; ++i) {
+        result[i] = (wide_result[i] > 65535) ? 65535 : static_cast<uint16_t>(wide_result[i]);
+    }
+    return result;
+}
+
+template<size_t N>
+inline simd_vector<int8_t, N> narrow_sat(const simd_vector<int16_t, N>& wide_result) {
+    simd_vector<int8_t, N> result;
+    for (size_t i = 0; i < N; ++i) {
+        if (wide_result[i] > 127) result[i] = 127;
+        else if (wide_result[i] < -128) result[i] = -128;
+        else result[i] = static_cast<int8_t>(wide_result[i]);
+    }
+    return result;
+}
+
 // 点积
 template<typename T, size_t N>
 inline T dot(const simd_vector<T, N>& a, const simd_vector<T, N>& b) {
@@ -690,6 +725,161 @@ inline simd_vector<T, N> abs(const simd_vector<T, N>& v) {
 #ifdef TINY_SIMD_ARM_NEON
 
 namespace tiny_simd {
+
+//=============================================================================
+// float32x2 特化版本 (vec2f)
+//=============================================================================
+
+template<>
+class simd_vector<float, 2> {
+private:
+    union {
+        float32x2_t neon_data;
+        alignas(8) float data_[2];
+    };
+
+public:
+    using value_type = float;
+    using size_type = size_t;
+    static constexpr size_type size_value = 2;
+    static constexpr bool is_simd_optimized = true;
+
+    //=============================================================================
+    // 构造函数
+    //=============================================================================
+
+    simd_vector() : neon_data(vdup_n_f32(0.0f)) {}
+
+    explicit simd_vector(float scalar) : neon_data(vdup_n_f32(scalar)) {}
+
+    simd_vector(std::initializer_list<float> init) {
+        assert(init.size() == 2);
+        auto it = init.begin();
+        data_[0] = *it++;
+        data_[1] = *it++;
+        neon_data = vld1_f32(data_);
+    }
+
+    simd_vector(const float* ptr) : neon_data(vld1_f32(ptr)) {}
+
+    simd_vector(float32x2_t neon_vec) : neon_data(neon_vec) {}
+
+    static simd_vector load_aligned(const float* ptr) {
+        return simd_vector(vld1_f32(ptr));
+    }
+
+    //=============================================================================
+    // 数据访问
+    //=============================================================================
+
+    float& operator[](size_t i) {
+        assert(i < 2);
+        vst1_f32(data_, neon_data);
+        return data_[i];
+    }
+
+    const float& operator[](size_t i) const {
+        assert(i < 2);
+        float* mutable_data = const_cast<float*>(data_);
+        vst1_f32(mutable_data, neon_data);
+        return data_[i];
+    }
+
+    float* data() {
+        vst1_f32(data_, neon_data);
+        return data_;
+    }
+
+    const float* data() const {
+        float* mutable_data = const_cast<float*>(data_);
+        vst1_f32(mutable_data, neon_data);
+        return data_;
+    }
+
+    constexpr size_t size() const { return 2; }
+
+    void store(float* ptr) const {
+        vst1_f32(ptr, neon_data);
+    }
+
+    void store_aligned(float* ptr) const {
+        vst1_f32(ptr, neon_data);
+    }
+
+    //=============================================================================
+    // 算术运算符
+    //=============================================================================
+
+    simd_vector& operator+=(const simd_vector& other) {
+        neon_data = vadd_f32(neon_data, other.neon_data);
+        return *this;
+    }
+
+    simd_vector& operator-=(const simd_vector& other) {
+        neon_data = vsub_f32(neon_data, other.neon_data);
+        return *this;
+    }
+
+    simd_vector& operator*=(const simd_vector& other) {
+        neon_data = vmul_f32(neon_data, other.neon_data);
+        return *this;
+    }
+
+    simd_vector& operator/=(const simd_vector& other) {
+        // 注意：float32x2 没有除法指令，使用乘法的倒数
+        float32x2_t reciprocal = vrecpe_f32(other.neon_data);
+        reciprocal = vmul_f32(vrecps_f32(other.neon_data, reciprocal), reciprocal);
+        neon_data = vmul_f32(neon_data, reciprocal);
+        return *this;
+    }
+
+    simd_vector& operator+=(float scalar) {
+        neon_data = vadd_f32(neon_data, vdup_n_f32(scalar));
+        return *this;
+    }
+
+    simd_vector& operator-=(float scalar) {
+        neon_data = vsub_f32(neon_data, vdup_n_f32(scalar));
+        return *this;
+    }
+
+    simd_vector& operator*=(float scalar) {
+        neon_data = vmul_f32(neon_data, vdup_n_f32(scalar));
+        return *this;
+    }
+
+    simd_vector& operator/=(float scalar) {
+        float32x2_t scalar_vec = vdup_n_f32(scalar);
+        float32x2_t reciprocal = vrecpe_f32(scalar_vec);
+        reciprocal = vmul_f32(vrecps_f32(scalar_vec, reciprocal), reciprocal);
+        neon_data = vmul_f32(neon_data, reciprocal);
+        return *this;
+    }
+
+    simd_vector operator-() const {
+        return simd_vector(vneg_f32(neon_data));
+    }
+
+    //=============================================================================
+    // 比较运算符
+    //=============================================================================
+
+    bool operator==(const simd_vector& other) const {
+        uint32x2_t result = vceq_f32(neon_data, other.neon_data);
+        // 检查两个元素都相等
+        return vget_lane_u32(result, 0) == 0xFFFFFFFF && vget_lane_u32(result, 1) == 0xFFFFFFFF;
+    }
+
+    bool operator!=(const simd_vector& other) const {
+        return !(*this == other);
+    }
+
+    // 访问内部NEON数据
+    float32x2_t neon() const { return neon_data; }
+};
+
+// 静态成员定义
+constexpr bool simd_vector<float, 2>::is_simd_optimized;
 
 //=============================================================================
 // float32x4 特化版本 (vec4f)
@@ -1240,9 +1430,11 @@ public:
 
     bool operator==(const simd_vector& other) const {
         uint8x16_t result = vceqq_u8(neon_data, other.neon_data);
-        uint64x2_t result64_lo = vpaddlq_u32(vpaddlq_u16(vpaddlq_u8(vget_low_u8(result))));
-        uint64x2_t result64_hi = vpaddlq_u32(vpaddlq_u16(vpaddlq_u8(vget_high_u8(result))));
-        uint64_t final_result = vgetq_lane_u64(result64_lo, 0) + vgetq_lane_u64(result64_hi, 0);
+        // 使用正确的水平求和方式
+        uint16x8_t result16 = vpaddlq_u8(result);  // uint8x16 → uint16x8
+        uint32x4_t result32 = vpaddlq_u16(result16);  // uint16x8 → uint32x4
+        uint64x2_t result64 = vpaddlq_u32(result32);  // uint32x4 → uint64x2
+        uint64_t final_result = vgetq_lane_u64(result64, 0) + vgetq_lane_u64(result64, 1);
         return final_result == 0xFFFFFFFFFFFFFFFFULL;
     }
 
@@ -1542,6 +1734,32 @@ public:
 // NEON特化的算法函数
 //=============================================================================
 
+// 点积特化 - float32x2
+template<>
+inline float dot<float, 2>(const simd_vector<float, 2>& a, const simd_vector<float, 2>& b) {
+    float32x2_t mul = vmul_f32(a.neon(), b.neon());
+    float32x2_t sum = vpadd_f32(mul, mul);  // 水平相加
+    return vget_lane_f32(sum, 0);
+}
+
+// 最小值特化 - float32x2
+template<>
+inline simd_vector<float, 2> min<float, 2>(const simd_vector<float, 2>& a, const simd_vector<float, 2>& b) {
+    return simd_vector<float, 2>(vmin_f32(a.neon(), b.neon()));
+}
+
+// 最大值特化 - float32x2
+template<>
+inline simd_vector<float, 2> max<float, 2>(const simd_vector<float, 2>& a, const simd_vector<float, 2>& b) {
+    return simd_vector<float, 2>(vmax_f32(a.neon(), b.neon()));
+}
+
+// 绝对值特化 - float32x2
+template<>
+inline simd_vector<float, 2> abs<float, 2>(const simd_vector<float, 2>& v) {
+    return simd_vector<float, 2>(vabs_f32(v.neon()));
+}
+
 // 点积特化 - float32x4
 template<>
 inline float dot<float, 4>(const simd_vector<float, 4>& a, const simd_vector<float, 4>& b) {
@@ -1657,88 +1875,127 @@ inline simd_vector<fp16_t, 8> abs<fp16_t, 8>(const simd_vector<fp16_t, 8>& v) {
 // NEON特化的加宽和饱和运算
 //=============================================================================
 
-// uint8x16 加宽加法特化
+// uint8x16 加宽加法特化 - 返回寄存器对
 template<>
 inline simd_vector<uint16_t, 16> add_wide<16>(const simd_vector<uint8_t, 16>& a, const simd_vector<uint8_t, 16>& b) {
     uint8x16_t neon_a = a.neon();
     uint8x16_t neon_b = b.neon();
 
+    // 拆分为低8字节和高8字节，分别进行加宽加法
     uint16x8_t result_low = vaddl_u8(vget_low_u8(neon_a), vget_low_u8(neon_b));
     uint16x8_t result_high = vaddl_u8(vget_high_u8(neon_a), vget_high_u8(neon_b));
 
+    // 构造结果 - 需要16个uint16元素的向量
     simd_vector<uint16_t, 16> result;
-    vst1q_u16(result.data(), result_low);
-    vst1q_u16(result.data() + 8, result_high);
+    vst1q_u16(result.data(), result_low);        // 存储低8个元素
+    vst1q_u16(result.data() + 8, result_high);   // 存储高8个元素
     return result;
 }
 
-// uint8x16 加宽乘法特化
+// uint8x16 加宽乘法特化 - 返回寄存器对
 template<>
 inline simd_vector<uint16_t, 16> mul_wide<16>(const simd_vector<uint8_t, 16>& a, const simd_vector<uint8_t, 16>& b) {
     uint8x16_t neon_a = a.neon();
     uint8x16_t neon_b = b.neon();
 
+    // 拆分为低8字节和高8字节，分别进行加宽乘法
     uint16x8_t result_low = vmull_u8(vget_low_u8(neon_a), vget_low_u8(neon_b));
     uint16x8_t result_high = vmull_u8(vget_high_u8(neon_a), vget_high_u8(neon_b));
 
+    // 构造结果 - 需要16个uint16元素的向量
     simd_vector<uint16_t, 16> result;
-    vst1q_u16(result.data(), result_low);
-    vst1q_u16(result.data() + 8, result_high);
+    vst1q_u16(result.data(), result_low);        // 存储低8个元素
+    vst1q_u16(result.data() + 8, result_high);   // 存储高8个元素
     return result;
 }
 
-// uint16x8 加宽加法特化
+// uint16x8 加宽加法特化 - 返回寄存器对
 template<>
 inline simd_vector<uint32_t, 8> add_wide<8>(const simd_vector<uint16_t, 8>& a, const simd_vector<uint16_t, 8>& b) {
     uint16x8_t neon_a = a.neon();
     uint16x8_t neon_b = b.neon();
 
+    // 拆分为低4个和高4个uint16，分别进行加宽加法
     uint32x4_t result_low = vaddl_u16(vget_low_u16(neon_a), vget_low_u16(neon_b));
     uint32x4_t result_high = vaddl_u16(vget_high_u16(neon_a), vget_high_u16(neon_b));
 
+    // 构造结果 - 需要8个uint32元素的向量
     simd_vector<uint32_t, 8> result;
-    vst1q_u32(result.data(), result_low);
-    vst1q_u32(result.data() + 4, result_high);
+    vst1q_u32(result.data(), result_low);        // 存储低4个元素
+    vst1q_u32(result.data() + 4, result_high);   // 存储高4个元素
     return result;
 }
 
-// uint16x8 加宽乘法特化
+// uint16x8 加宽乘法特化 - 返回寄存器对
 template<>
 inline simd_vector<uint32_t, 8> mul_wide<8>(const simd_vector<uint16_t, 8>& a, const simd_vector<uint16_t, 8>& b) {
     uint16x8_t neon_a = a.neon();
     uint16x8_t neon_b = b.neon();
 
+    // 拆分为低4个和高4个uint16，分别进行加宽乘法
     uint32x4_t result_low = vmull_u16(vget_low_u16(neon_a), vget_low_u16(neon_b));
     uint32x4_t result_high = vmull_u16(vget_high_u16(neon_a), vget_high_u16(neon_b));
 
+    // 构造结果 - 需要8个uint32元素的向量
     simd_vector<uint32_t, 8> result;
-    vst1q_u32(result.data(), result_low);
-    vst1q_u32(result.data() + 4, result_high);
+    vst1q_u32(result.data(), result_low);        // 存储低4个元素
+    vst1q_u32(result.data() + 4, result_high);   // 存储高4个元素
     return result;
 }
 
-// uint8x16 饱和加法特化
+// uint8x16 饱和加法特化 - 使用NEON内置饱和指令
 template<>
 inline simd_vector<uint8_t, 16> add_sat<16>(const simd_vector<uint8_t, 16>& a, const simd_vector<uint8_t, 16>& b) {
     return simd_vector<uint8_t, 16>(vqaddq_u8(a.neon(), b.neon()));
 }
 
-// uint8x16 饱和减法特化
+// uint8x16 饱和减法特化 - 使用NEON内置饱和指令
 template<>
 inline simd_vector<uint8_t, 16> sub_sat<16>(const simd_vector<uint8_t, 16>& a, const simd_vector<uint8_t, 16>& b) {
     return simd_vector<uint8_t, 16>(vqsubq_u8(a.neon(), b.neon()));
 }
 
-// uint16x8 饱和加法特化
+// uint16x8 饱和加法特化 - 使用NEON内置饱和指令
 template<>
 inline simd_vector<uint16_t, 8> add_sat<8>(const simd_vector<uint16_t, 8>& a, const simd_vector<uint16_t, 8>& b) {
     return simd_vector<uint16_t, 8>(vqaddq_u16(a.neon(), b.neon()));
 }
 
-// uint16x8 饱和减法特化
+// uint16x8 饱和减法特化 - 使用NEON内置饱和指令
 template<>
 inline simd_vector<uint16_t, 8> sub_sat<8>(const simd_vector<uint16_t, 8>& a, const simd_vector<uint16_t, 8>& b) {
     return simd_vector<uint16_t, 8>(vqsubq_u16(a.neon(), b.neon()));
+}
+
+// 额外添加：从加宽结果饱和转换回原类型的函数
+template<>
+inline simd_vector<uint8_t, 16> narrow_sat<16>(const simd_vector<uint16_t, 16>& wide_result) {
+    // 将16个uint16值饱和转换为16个uint8值
+    uint16x8_t low_part = vld1q_u16(wide_result.data());
+    uint16x8_t high_part = vld1q_u16(wide_result.data() + 8);
+
+    // 使用饱和窄化指令
+    uint8x8_t narrow_low = vqmovn_u16(low_part);
+    uint8x8_t narrow_high = vqmovn_u16(high_part);
+
+    // 合并为uint8x16
+    uint8x16_t result = vcombine_u8(narrow_low, narrow_high);
+    return simd_vector<uint8_t, 16>(result);
+}
+
+template<>
+inline simd_vector<uint16_t, 8> narrow_sat<8>(const simd_vector<uint32_t, 8>& wide_result) {
+    // 将8个uint32值饱和转换为8个uint16值
+    uint32x4_t low_part = vld1q_u32(wide_result.data());
+    uint32x4_t high_part = vld1q_u32(wide_result.data() + 4);
+
+    // 使用饱和窄化指令
+    uint16x4_t narrow_low = vqmovn_u32(low_part);
+    uint16x4_t narrow_high = vqmovn_u32(high_part);
+
+    // 合并为uint16x8
+    uint16x8_t result = vcombine_u16(narrow_low, narrow_high);
+    return simd_vector<uint16_t, 8>(result);
 }
 
 } // namespace tiny_simd

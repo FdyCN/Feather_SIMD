@@ -1,6 +1,7 @@
 #include "core/tiny_simd.hpp"
 #include <gtest/gtest.h>
 #include <limits>
+#include <chrono>
 
 using namespace tiny_simd;
 
@@ -91,6 +92,49 @@ TEST_F(OverflowTest, SaturatingArithmetic) {
               << (int)sat_sub[1] << ", " << (int)sat_sub[2] << ", " << (int)sat_sub[3] << std::endl;
 }
 
+TEST_F(OverflowTest, NarrowingSaturation) {
+    // 测试从加宽结果饱和转换回原类型
+    vec16ub a{200, 150, 255, 100, 200, 150, 255, 100,
+              200, 150, 255, 100, 200, 150, 255, 100};
+    vec16ub b{100, 200, 50, 50, 100, 200, 50, 50,
+              100, 200, 50, 50, 100, 200, 50, 50};
+
+    // 先加宽加法
+    auto wide_sum = add_wide(a, b);  // 结果: 300, 350, 305, 150, ...
+
+    // 然后窄化饱和转换回uint8
+    auto narrow_result = narrow_sat(wide_sum);
+    EXPECT_EQ(narrow_result[0], 255);  // min(300, 255) = 255
+    EXPECT_EQ(narrow_result[1], 255);  // min(350, 255) = 255
+    EXPECT_EQ(narrow_result[2], 255);  // min(305, 255) = 255
+    EXPECT_EQ(narrow_result[3], 150);  // 150 (在范围内)
+
+    std::cout << "Narrowing saturation results: " << (int)narrow_result[0] << ", "
+              << (int)narrow_result[1] << ", " << (int)narrow_result[2] << ", " << (int)narrow_result[3] << std::endl;
+}
+
+TEST_F(OverflowTest, RegisterPairHandling) {
+    // 测试NEON寄存器对处理
+    // uint8x16 (1个寄存器) → uint16x16 (2个寄存器)
+    vec16ub a{255, 255, 255, 255, 255, 255, 255, 255,
+              255, 255, 255, 255, 255, 255, 255, 255};
+    vec16ub b{1, 2, 3, 4, 5, 6, 7, 8,
+              9, 10, 11, 12, 13, 14, 15, 16};
+
+    // 加宽加法应该正确处理所有16个元素
+    auto wide_result = add_wide(a, b);
+
+    EXPECT_EQ(wide_result.size(), 16);  // 确保有16个元素
+    EXPECT_EQ(wide_result[0], 256);     // 255 + 1 = 256
+    EXPECT_EQ(wide_result[7], 263);     // 255 + 8 = 263
+    EXPECT_EQ(wide_result[8], 264);     // 255 + 9 = 264 (高8字节)
+    EXPECT_EQ(wide_result[15], 271);    // 255 + 16 = 271
+
+    std::cout << "Register pair handling - element 0: " << wide_result[0]
+              << ", element 8: " << wide_result[8]
+              << ", element 15: " << wide_result[15] << std::endl;
+}
+
 TEST_F(OverflowTest, Uint16Operations) {
     // uint16 类型的加宽运算
     vec8us a{30000, 40000, 50000, 60000, 30000, 40000, 50000, 60000};
@@ -139,35 +183,6 @@ TEST_F(OverflowTest, SignedIntegerOverflow) {
 
     std::cout << "Signed saturation results: " << (int)sat_sum[0] << ", "
               << (int)sat_sum[1] << std::endl;
-}
-
-TEST_F(OverflowTest, PerformanceComparison) {
-    // 性能对比测试 (简单计时)
-    const size_t iterations = 1000000;
-    vec16ub a{200, 150, 255, 128, 200, 150, 255, 128,
-              200, 150, 255, 128, 200, 150, 255, 128};
-    vec16ub b{100, 200, 1, 128, 100, 200, 1, 128,
-              100, 200, 1, 128, 100, 200, 1, 128};
-
-    // 测试常规加法
-    auto start = std::chrono::high_resolution_clock::now();
-    for (size_t i = 0; i < iterations; ++i) {
-        volatile auto result = a + b;  // volatile 防止优化器删除
-    }
-    auto end = std::chrono::high_resolution_clock::now();
-    auto regular_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-
-    // 测试饱和加法
-    start = std::chrono::high_resolution_clock::now();
-    for (size_t i = 0; i < iterations; ++i) {
-        volatile auto result = add_sat(a, b);
-    }
-    end = std::chrono::high_resolution_clock::now();
-    auto saturated_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-
-    std::cout << "Regular addition time: " << regular_time.count() << " μs" << std::endl;
-    std::cout << "Saturated addition time: " << saturated_time.count() << " μs" << std::endl;
-    std::cout << "Overhead ratio: " << (double)saturated_time.count() / regular_time.count() << "x" << std::endl;
 }
 
 // 边界值测试
