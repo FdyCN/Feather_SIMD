@@ -11,7 +11,7 @@ The `tiny_simd.hpp` header file provides a high-performance, cross-platform SIMD
 ### Core Vector Class
 
 - **`simd_vector<T, N>`**: Template class for SIMD vectors
-  - `T`: Element type (arithmetic types: float, double, int32_t, int16_t, int8_t)
+  - `T`: Element type (arithmetic types: float, double, fp16_t, int32_t, uint32_t, int16_t, uint16_t, int8_t, uint8_t)
   - `N`: Vector size (number of elements)
   - Features automatic SIMD optimization detection
   - Properly aligned memory layout
@@ -28,17 +28,34 @@ The `tiny_simd.hpp` header file provides a high-performance, cross-platform SIMD
 - **`vec2d`**: `simd_vector<double, 2>` - 2D double vector
 - **`vec4d`**: `simd_vector<double, 4>` - 4D double vector
 
+#### Half Precision Vectors
+- **`vec4h`**: `simd_vector<fp16_t, 4>` - 4D half precision vector
+- **`vec8h`**: `simd_vector<fp16_t, 8>` - 8D half precision vector (SIMD optimized)
+- **`vec16h`**: `simd_vector<fp16_t, 16>` - 16D half precision vector
+
 #### Integer Vectors
 - **`vec4i`**: `simd_vector<int32_t, 4>` - 4D int32 vector (SIMD optimized)
 - **`vec8i`**: `simd_vector<int32_t, 8>` - 8D int32 vector (AVX optimized)
+
+#### Unsigned Integer Vectors
+- **`vec4ui`**: `simd_vector<uint32_t, 4>` - 4D uint32 vector (SIMD optimized)
+- **`vec8ui`**: `simd_vector<uint32_t, 8>` - 8D uint32 vector (AVX optimized)
 
 #### Short Integer Vectors
 - **`vec8s`**: `simd_vector<int16_t, 8>` - 8D int16 vector
 - **`vec16s`**: `simd_vector<int16_t, 16>` - 16D int16 vector
 
+#### Unsigned Short Integer Vectors
+- **`vec8us`**: `simd_vector<uint16_t, 8>` - 8D uint16 vector (SIMD optimized)
+- **`vec16us`**: `simd_vector<uint16_t, 16>` - 16D uint16 vector
+
 #### Byte Vectors
 - **`vec16b`**: `simd_vector<int8_t, 16>` - 16D int8 vector
 - **`vec32b`**: `simd_vector<int8_t, 32>` - 32D int8 vector
+
+#### Unsigned Byte Vectors
+- **`vec16ub`**: `simd_vector<uint8_t, 16>` - 16D uint8 vector (SIMD optimized)
+- **`vec32ub`**: `simd_vector<uint8_t, 32>` - 32D uint8 vector
 
 ## Supported SIMD Instructions
 
@@ -47,12 +64,17 @@ The `tiny_simd.hpp` header file provides a high-performance, cross-platform SIMD
 #### ARM NEON
 - **Float32x4**: 4-element float vectors with native NEON optimization
 - **Int32x4**: 4-element int32 vectors with native NEON optimization
+- **Uint32x4**: 4-element uint32 vectors with native NEON optimization
+- **Uint8x16**: 16-element uint8 vectors with native NEON optimization
+- **Uint16x8**: 8-element uint16 vectors with native NEON optimization
+- **FP16x8**: 8-element half precision vectors with native NEON optimization (when available)
 - Specialized instructions: `vaddq_f32`, `vsubq_f32`, `vmulq_f32`, `vminq_f32`, `vmaxq_f32`, etc.
+- Unsigned integer operations: `vaddq_u32`, `vsubq_u32`, `vmulq_u32`, `vminq_u32`, `vmaxq_u32`, etc.
 
 #### x86 SSE/AVX
-- **SSE**: 128-bit vectors (4 floats, 2 doubles, 4 int32s)
-- **AVX**: 256-bit vectors (8 floats, 4 doubles)
-- **AVX2**: Enhanced integer operations
+- **SSE**: 128-bit vectors (4 floats, 2 doubles, 4 int32s, 4 uint32s, 8 int16s, 8 uint16s, 16 int8s, 16 uint8s, 8 fp16s)
+- **AVX**: 256-bit vectors (8 floats, 4 doubles, 8 int32s, 8 uint32s, 16 fp16s)
+- **AVX2**: Enhanced integer operations (16 int16s, 16 uint16s, 32 int8s, 32 uint8s)
 
 ### Basic Operations
 
@@ -94,6 +116,14 @@ The `tiny_simd.hpp` header file provides a high-performance, cross-platform SIMD
 - **`clamp(v, min, max)`**: Clamp values to range
 - **`abs(v)`**: Element-wise absolute value
 
+#### Overflow-Safe Arithmetic
+- **`add_wide(a, b)`**: Widening addition (returns larger data type)
+  - `uint8 + uint8 → uint16`, `uint16 + uint16 → uint32`, `int8 + int8 → int16`
+- **`mul_wide(a, b)`**: Widening multiplication (returns larger data type)
+  - `uint8 * uint8 → uint16`, `uint16 * uint16 → uint32`, `int8 * int8 → int16`
+- **`add_sat(a, b)`**: Saturating addition (clamps to type limits)
+- **`sub_sat(a, b)`**: Saturating subtraction (clamps to type limits)
+
 ## SIMD Optimization Features
 
 ### Automatic Detection
@@ -104,6 +134,10 @@ The `tiny_simd.hpp` header file provides a high-performance, cross-platform SIMD
 ### ARM NEON Specializations
 - **vec4f**: Full NEON float32x4_t optimization
 - **vec4i**: Full NEON int32x4_t optimization
+- **vec4ui**: Full NEON uint32x4_t optimization
+- **vec16ub**: Full NEON uint8x16_t optimization
+- **vec8us**: Full NEON uint16x8_t optimization
+- **vec8h**: Full NEON fp16x8_t optimization (when FP16 support available)
 - Optimized dot product, min/max, abs operations
 - Efficient reciprocal division approximation
 
@@ -131,24 +165,59 @@ The `tiny_simd.hpp` header file provides a high-performance, cross-platform SIMD
 #include "core/tiny_simd.hpp"
 using namespace tiny_simd;
 
-// Create vectors
-vec4f a{1.0f, 2.0f, 3.0f, 4.0f};
+// Create vectors with different data types
+vec4f a{1.0f, 2.0f, 3.0f, 4.0f};           // float32 vector
 vec4f b{5.0f, 6.0f, 7.0f, 8.0f};
 
-// Basic operations
-vec4f sum = a + b;           // SIMD optimized addition
-vec4f scaled = a * 2.0f;     // Scalar multiplication
-float dp = dot(a, b);        // SIMD optimized dot product
+vec4ui ui_a{1, 2, 3, 4};                    // uint32 vector
+vec4ui ui_b{5, 6, 7, 8};
 
-// Vector math
-float len = length(a);       // Vector magnitude
-vec4f normalized = normalize(a); // Unit vector
-vec4f clamped = clamp(a, 0.0f, 10.0f); // Clamp to range
+vec8h half_a{1.0f, 2.0f, 3.0f, 4.0f,       // fp16 vector
+             5.0f, 6.0f, 7.0f, 8.0f};
+
+vec16ub byte_a{1, 2, 3, 4, 5, 6, 7, 8,     // uint8 vector
+               9, 10, 11, 12, 13, 14, 15, 16};
+
+// Basic operations (SIMD optimized when supported)
+vec4f sum = a + b;                          // Float vector addition
+vec4ui ui_sum = ui_a + ui_b;                // Unsigned integer addition
+float dp = dot(a, b);                       // SIMD optimized dot product
+
+// Vector math operations
+float len = length(a);                      // Vector magnitude
+vec4f normalized = normalize(a);            // Unit vector
+vec4f clamped = clamp(a, 0.0f, 10.0f);     // Clamp to range
+
+// Element-wise operations work with all types
+vec16ub clamped_bytes = clamp(byte_a,
+                              vec16ub(5),
+                              vec16ub(200));
+
+// Overflow-safe arithmetic examples
+vec16ub a{200, 150, 255, 100};  // uint8 values near limits
+vec16ub b{100, 200, 50, 50};
+
+// Regular addition (may overflow): 200+100=44 (wraps around)
+vec16ub regular_sum = a + b;
+
+// Widening addition (no overflow): returns uint16
+auto wide_sum = add_wide(a, b);    // Results: 300, 350, 305, 150
+
+// Saturating addition (clamps to limits): max value is 255
+vec16ub sat_sum = add_sat(a, b);   // Results: 255, 255, 255, 150
 ```
 
 ## Performance Notes
 
 - SIMD-optimized operations provide 2-8x performance improvement over scalar code
-- ARM NEON optimizations available for float and int32 4-element vectors
+- ARM NEON optimizations available for float, int32, uint32, uint8, uint16, and fp16 vectors
 - Memory alignment is crucial for maximum SIMD performance
 - Use `load_aligned()` and `store_aligned()` when possible for best performance
+- Unsigned integer types provide additional optimization opportunities for specific use cases
+- Half precision (fp16) vectors enable 2x memory density for compatible applications
+
+### Overflow Handling Performance
+- **Regular arithmetic**: Fastest, but may overflow (wraparound behavior)
+- **Saturating arithmetic**: Moderate overhead (~1.2-2x), prevents overflow by clamping
+- **Widening arithmetic**: Minimal overhead, prevents overflow by using larger types
+- **NEON optimizations**: Available for saturating (`vqadd`, `vqsub`) and widening (`vaddl`, `vmull`) operations
