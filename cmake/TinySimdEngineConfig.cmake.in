@@ -1,0 +1,19 @@
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/TinySimdEngineTargets.cmake")
+
+# 检查组件
+set(_supported_components simd_core math cv)
+
+foreach(_comp ${TinySimdEngine_FIND_COMPONENTS})
+    if(NOT _comp IN_LIST _supported_components)
+        set(TinySimdEngine_FOUND False)
+        set(TinySimdEngine_NOT_FOUND_MESSAGE "Unsupported component: ${_comp}")
+    endif()
+endforeach()
+
+# 设置变量
+set_and_check(TinySimdEngine_INCLUDE_DIR "@PACKAGE_CMAKE_INSTALL_INCLUDEDIR@/tiny_simd")
+set(TinySimdEngine_LIBRARIES TinySimdEngine::tiny_simd_core TinySimdEngine::tiny_math TinySimdEngine::tiny_cv)
+
+check_required_components(TinySimdEngine)

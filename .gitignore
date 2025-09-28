@@ -1,0 +1,103 @@
+# Build directories
+build/
+bin/
+lib/
+*build*/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+Testing/
+
+# Compiled Object files
+*.o
+*.obj
+*.ko
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Debug information
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Profiling data
+*.gcno
+*.gcda
+*.gcov
+
+# IDE and editor files
+.claude/
+.vscode/
+.vs/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Package managers
+conan/
+vcpkg/
+.conan/
+
+# Coverage reports
+coverage/
+*.coverage
+htmlcov/
+
+# Benchmarking results
+benchmark_results/
+*.benchmark
+
+# Documentation build
+docs/_build/
+docs/html/
+docs/latex/
+
+# System files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Local configuration
+.env
+.env.local
+config.local.*
