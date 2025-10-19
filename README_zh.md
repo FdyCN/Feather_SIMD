@@ -3,7 +3,7 @@
 
   # Feather SIMD
 
-  **现代化、高性能的 C++11 SIMD 抽象库**
+  **轻量化、高性能、高易用的HEADER-ONLY C++ SIMD 抽象库**
 
   [English](README.md) | [中文](README_zh.md)
 

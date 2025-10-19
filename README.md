@@ -3,7 +3,7 @@
 
   # Feather SIMD
 
-  **A Modern, High-Performance SIMD Abstraction Library for C++11**
+  **A Light-Weight, High-Performance, Easy-Used HEADER-ONLY SIMD Abstraction Library for C++**
 
   [English](README.md) | [中文](README_zh.md)
 
