@@ -4,7 +4,7 @@
 
 using namespace tiny_simd;
 
-bool float_equal(float a, float b, float tolerance = 1e-6f) {
+inline bool float_equal(float a, float b, float tolerance = 1e-6f) {
     return std::abs(a - b) < tolerance;
 }
 

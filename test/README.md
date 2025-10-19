@@ -46,9 +46,9 @@ cmake ..
 make
 
 # 运行所有测试 (三种方式)
-./bin/test/simd_basic_test           # 直接运行可执行文件
+./bin/test/tiny_simd_unit_tests      # 直接运行统一测试可执行文件
 ctest                                # 使用 CTest
-cmake --build . --target test       # 使用 CMake 测试目标
+cmake --build . --target test        # 使用 CMake 测试目标
 
 # 从项目根目录运行测试
 cd ..
@@ -60,13 +60,13 @@ cmake --build build --target test   # 使用 CMake
 
 ```bash
 # 详细的 GoogleTest 输出
-./bin/test/simd_basic_test --gtest_verbose
+./bin/test/tiny_simd_unit_tests --gtest_verbose
 
 # 详细的 CTest 输出
 ctest --verbose
 
 # 只运行特定测试
-./bin/test/simd_basic_test --gtest_filter="VectorConstructionTest*"
+./bin/test/tiny_simd_unit_tests --gtest_filter="VectorConstructionTest*"
 ```
 
 ## 当前测试覆盖
@@ -136,12 +136,7 @@ ctest --verbose
    }
    ```
 
-4. 更新 `test/unit_tests/CMakeLists.txt`：
-   ```cmake
-   add_executable(new_test new_test.cpp)
-   target_link_libraries(new_test tiny_simd_core gtest gtest_main)
-   add_test(NAME new_test COMMAND new_test)
-   ```
+4. 无需修改 `test/unit_tests/CMakeLists.txt`，该目录下的所有 `.cpp` 会自动加入统一测试目标。
 
 ### GoogleTest 断言
 
@@ -196,11 +191,11 @@ ctest --verbose
 
 ```bash
 # 运行特定测试套件
-./bin/test/simd_basic_test --gtest_filter="ArithmeticOperationsTest*"
+./bin/test/tiny_simd_unit_tests --gtest_filter="ArithmeticOperationsTest*"
 
 # 重复运行测试检查稳定性
-./bin/test/simd_basic_test --gtest_repeat=100
+./bin/test/tiny_simd_unit_tests --gtest_repeat=100
 
 # 在失败时停止
-./bin/test/simd_basic_test --gtest_break_on_failure
+./bin/test/tiny_simd_unit_tests --gtest_break_on_failure
 ```

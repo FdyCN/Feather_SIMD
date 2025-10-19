@@ -329,6 +329,12 @@ public:
     const reg_type& reg() const { return reg_; }
 };
 
+template<typename T, size_t N, typename Backend>
+constexpr typename vec<T, N, Backend>::size_type vec<T, N, Backend>::size_value;
+
+template<typename T, size_t N, typename Backend>
+constexpr bool vec<T, N, Backend>::is_simd_optimized;
+
 //=============================================================================
 // Binary Operators
 //=============================================================================

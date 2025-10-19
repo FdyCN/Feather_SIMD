@@ -403,6 +403,67 @@ struct backend_ops<neon_backend, uint8_t, 16> {
 };
 
 //=============================================================================
+// NEON Backend Operations - int8x16
+//=============================================================================
+
+template<>
+struct backend_ops<neon_backend, int8_t, 16> {
+    using reg_type = int8x16_t;
+
+    static reg_type zero() { return vdupq_n_s8(0); }
+    static reg_type set1(int8_t scalar) { return vdupq_n_s8(scalar); }
+    static reg_type load(const int8_t* ptr) { return vld1q_s8(ptr); }
+    static reg_type load_aligned(const int8_t* ptr) { return vld1q_s8(ptr); }
+
+    static reg_type load_from_initializer(std::initializer_list<int8_t> init) {
+        alignas(16) int8_t temp[16] = {0};
+        auto it = init.begin();
+        for (size_t i = 0; i < 16 && it != init.end(); ++i, ++it) {
+            temp[i] = *it;
+        }
+        return vld1q_s8(temp);
+    }
+
+    static void store(int8_t* ptr, reg_type reg) { vst1q_s8(ptr, reg); }
+    static void store_aligned(int8_t* ptr, reg_type reg) { vst1q_s8(ptr, reg); }
+
+    static int8_t extract(reg_type reg, size_t index) {
+        alignas(16) int8_t temp[16];
+        vst1q_s8(temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return vaddq_s8(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return vsubq_s8(a, b); }
+    static reg_type mul(reg_type a, reg_type b) { return vmulq_s8(a, b); }
+
+    static reg_type div(reg_type a, reg_type b) {
+        alignas(16) int8_t temp_a[16], temp_b[16], result[16];
+        vst1q_s8(temp_a, a);
+        vst1q_s8(temp_b, b);
+        for (size_t i = 0; i < 16; ++i) {
+            result[i] = temp_a[i] / temp_b[i];
+        }
+        return vld1q_s8(result);
+    }
+
+    static reg_type neg(reg_type a) { return vnegq_s8(a); }
+
+    static bool equal(reg_type a, reg_type b) {
+        uint8x16_t result = vceqq_s8(a, b);
+        uint16x8_t result16 = vpaddlq_u8(result);
+        uint32x4_t result32 = vpaddlq_u16(result16);
+        uint64x2_t result64 = vpaddlq_u32(result32);
+        uint64_t final_result = vgetq_lane_u64(result64, 0) + vgetq_lane_u64(result64, 1);
+        return final_result == 0xFFFFFFFFFFFFFFFFULL;
+    }
+
+    static reg_type min(reg_type a, reg_type b) { return vminq_s8(a, b); }
+    static reg_type max(reg_type a, reg_type b) { return vmaxq_s8(a, b); }
+    static reg_type abs(reg_type a) { return vabsq_s8(a); }
+};
+
+//=============================================================================
 // NEON Backend Operations - fp16x8 (if supported)
 //=============================================================================
 
