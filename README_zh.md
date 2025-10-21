@@ -538,8 +538,11 @@ loaded.store_aligned(aligned_output);
 - **[test/unit_tests/simd_basic_test.cpp](../test/unit_tests/simd_basic_test.cpp)**：基础 SIMD 操作测试
 - **[test/unit_tests/vec2f_neon_test.cpp](../test/unit_tests/vec2f_neon_test.cpp)**：NEON 特定 vec2f 测试
 - **[test/unit_tests/overflow_test.cpp](../test/unit_tests/overflow_test.cpp)**：防溢出算术测试
+- **[test/unit_tests/opencv_comparison_test.cpp](../test/unit_tests/opencv_comparison_test.cpp)**：与 OpenCV 的精度和性能对比测试（可选）
 
-运行测试：
+### 运行测试
+
+基础测试（无依赖）：
 ```bash
 mkdir build && cd build
 cmake ..
@@ -548,6 +551,44 @@ ctest
 # 或直接运行
 ./bin/test/tiny_simd_unit_tests
 ```
+
+### 使用 OpenCV 进行测试（可选）
+
+为了进行精度验证和与 OpenCV 的性能基准测试，你可以启用 OpenCV 支持：
+
+#### 安装 OpenCV
+
+**macOS:**
+```bash
+brew install opencv
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install libopencv-dev
+```
+
+**其他 Linux:**
+```bash
+# 使用你的发行版的包管理器
+# 例如：yum install opencv-devel (Fedora/RHEL)
+```
+
+#### 使用 OpenCV 构建
+
+```bash
+mkdir build && cd build
+cmake -DTINY_SIMD_WITH_OPENCV=ON ..
+make
+./bin/test/tiny_simd_unit_tests --gtest_filter="OpenCVComparison.*"
+```
+
+OpenCV 对比测试将会：
+- 针对 OpenCV 的参考实现验证 SIMD 实现的精度
+- 测量 SIMD 和 OpenCV 操作之间的性能差异
+- 报告最大误差和加速比指标
+
+**注意：** OpenCV 是完全可选的。核心库没有依赖，在没有 OpenCV 的情况下也能完美工作。OpenCV 测试仅用于验证和基准测试目的。
 
 ## 需求
 
@@ -564,7 +605,7 @@ ctest
 
 ## 许可证
 
-此库是 claude-tiny-engine 项目的一部分。
+此库是 Feather 项目的一部分。
 
 ## 贡献
 

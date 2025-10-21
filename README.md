@@ -538,8 +538,11 @@ The library includes comprehensive unit tests to ensure correctness:
 - **[test/unit_tests/simd_basic_test.cpp](../test/unit_tests/simd_basic_test.cpp)**: Basic SIMD operations tests
 - **[test/unit_tests/vec2f_neon_test.cpp](../test/unit_tests/vec2f_neon_test.cpp)**: NEON-specific vec2f tests
 - **[test/unit_tests/overflow_test.cpp](../test/unit_tests/overflow_test.cpp)**: Overflow-safe arithmetic tests
+- **[test/unit_tests/opencv_comparison_test.cpp](../test/unit_tests/opencv_comparison_test.cpp)**: Accuracy and performance comparison with OpenCV (optional)
 
-Run tests with:
+### Running Tests
+
+Basic tests (no dependencies):
 ```bash
 mkdir build && cd build
 cmake ..
@@ -548,6 +551,44 @@ ctest
 # Or run directly
 ./bin/test/tiny_simd_unit_tests
 ```
+
+### Testing with OpenCV (Optional)
+
+For accuracy validation and performance benchmarking against OpenCV, you can enable OpenCV support:
+
+#### Installing OpenCV
+
+**macOS:**
+```bash
+brew install opencv
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install libopencv-dev
+```
+
+**Other Linux:**
+```bash
+# Use your distribution's package manager
+# e.g., yum install opencv-devel (Fedora/RHEL)
+```
+
+#### Building with OpenCV
+
+```bash
+mkdir build && cd build
+cmake -DTINY_SIMD_WITH_OPENCV=ON ..
+make
+./bin/test/tiny_simd_unit_tests --gtest_filter="OpenCVComparison.*"
+```
+
+The OpenCV comparison tests will:
+- Validate SIMD implementation accuracy against OpenCV's reference implementation
+- Measure performance differences between SIMD and OpenCV operations
+- Report maximum error and speedup metrics
+
+**Note:** OpenCV is completely optional. The core library has no dependencies and will work perfectly without it. OpenCV tests are only for validation and benchmarking purposes.
 
 ## Requirements
 

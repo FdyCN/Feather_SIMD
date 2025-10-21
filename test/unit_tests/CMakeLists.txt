@@ -17,6 +17,13 @@ target_link_libraries(tiny_simd_unit_tests
         gtest_main
 )
 
+# 如果启用了 OpenCV，添加 OpenCV 支持
+if(TINY_SIMD_WITH_OPENCV AND OpenCV_FOUND)
+    target_include_directories(tiny_simd_unit_tests PRIVATE ${OpenCV_INCLUDE_DIRS})
+    target_link_libraries(tiny_simd_unit_tests PRIVATE ${OpenCV_LIBS})
+    message(STATUS "OpenCV tests enabled for unit tests")
+endif()
+
 # 统一设置输出目录，方便直接运行
 set_target_properties(tiny_simd_unit_tests
     PROPERTIES
