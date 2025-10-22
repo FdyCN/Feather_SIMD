@@ -340,6 +340,65 @@ struct backend_ops<neon_backend, uint16_t, 8> {
 };
 
 //=============================================================================
+// NEON Backend Operations - int16x8
+//=============================================================================
+
+template<>
+struct backend_ops<neon_backend, int16_t, 8> {
+    using reg_type = int16x8_t;
+
+    static reg_type zero() { return vdupq_n_s16(0); }
+    static reg_type set1(int16_t scalar) { return vdupq_n_s16(scalar); }
+    static reg_type load(const int16_t* ptr) { return vld1q_s16(ptr); }
+    static reg_type load_aligned(const int16_t* ptr) { return vld1q_s16(ptr); }
+
+    static reg_type load_from_initializer(std::initializer_list<int16_t> init) {
+        alignas(16) int16_t temp[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+        auto it = init.begin();
+        for (size_t i = 0; i < 8 && it != init.end(); ++i, ++it) {
+            temp[i] = *it;
+        }
+        return vld1q_s16(temp);
+    }
+
+    static void store(int16_t* ptr, reg_type reg) { vst1q_s16(ptr, reg); }
+    static void store_aligned(int16_t* ptr, reg_type reg) { vst1q_s16(ptr, reg); }
+
+    static int16_t extract(reg_type reg, size_t index) {
+        alignas(16) int16_t temp[8];
+        vst1q_s16(temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return vaddq_s16(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return vsubq_s16(a, b); }
+    static reg_type mul(reg_type a, reg_type b) { return vmulq_s16(a, b); }
+
+    static reg_type div(reg_type a, reg_type b) {
+        alignas(16) int16_t temp_a[8], temp_b[8], result[8];
+        vst1q_s16(temp_a, a);
+        vst1q_s16(temp_b, b);
+        for (size_t i = 0; i < 8; ++i) {
+            result[i] = temp_a[i] / temp_b[i];
+        }
+        return vld1q_s16(result);
+    }
+
+    static reg_type neg(reg_type a) { return vnegq_s16(a); }
+
+    static bool equal(reg_type a, reg_type b) {
+        uint16x8_t result = vceqq_s16(a, b);
+        uint64x2_t result64 = vpaddlq_u32(vpaddlq_u16(result));
+        uint64_t final_result = vgetq_lane_u64(result64, 0) + vgetq_lane_u64(result64, 1);
+        return final_result == 0xFFFFFFFFFFFFFFFFULL;
+    }
+
+    static reg_type min(reg_type a, reg_type b) { return vminq_s16(a, b); }
+    static reg_type max(reg_type a, reg_type b) { return vmaxq_s16(a, b); }
+    static reg_type abs(reg_type a) { return vabsq_s16(a); }
+};
+
+//=============================================================================
 // NEON Backend Operations - uint8x16
 //=============================================================================
 
