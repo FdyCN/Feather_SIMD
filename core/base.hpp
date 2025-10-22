@@ -27,6 +27,25 @@
 namespace tiny_simd {
 
 //=============================================================================
+// Type Traits for fp16_t Support
+//=============================================================================
+
+// Helper: Check if type is valid for SIMD operations
+// std::is_arithmetic doesn't recognize __fp16, so we need custom trait
+template<typename T>
+struct is_simd_arithmetic {
+    static constexpr bool value = std::is_arithmetic<T>::value;
+};
+
+// Specialize for fp16_t when it's __fp16
+#if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC) || defined(__ARM_FP16_FORMAT_IEEE)
+template<>
+struct is_simd_arithmetic<fp16_t> {
+    static constexpr bool value = true;
+};
+#endif
+
+//=============================================================================
 // Backend Tags - Backend type markers
 //=============================================================================
 
@@ -185,7 +204,7 @@ template<typename T, size_t N, typename Backend = auto_backend>
 class vec {
 private:
     static_assert(N > 0, "Vector size must be positive");
-    static_assert(std::is_arithmetic<T>::value, "T must be arithmetic type");
+    static_assert(is_simd_arithmetic<T>::value, "T must be arithmetic type or fp16_t");
 
     // Resolve actual backend: auto_backend -> smart selection, otherwise use explicit
     using actual_backend = typename std::conditional<

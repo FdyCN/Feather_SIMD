@@ -11,6 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # 构建类型配置
+# set(CMAKE_BUILD_TYPE Debug)
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
@@ -51,6 +52,20 @@ function(enable_simd_instructions)
         check_cxx_compiler_flag("-mfpu=neon" COMPILER_SUPPORTS_NEON)
         if(COMPILER_SUPPORTS_NEON)
             add_compile_options(-mfpu=neon)
+        endif()
+
+        # 检测 FP16 支持（Apple Silicon / ARMv8.2+）
+        check_cxx_compiler_flag("-march=armv8.2-a+fp16" COMPILER_SUPPORTS_FP16)
+        if(COMPILER_SUPPORTS_FP16)
+            message(STATUS "ARM FP16 vector arithmetic support detected")
+            add_compile_options(-march=armv8.2-a+fp16)
+        else()
+            # 尝试其他方式启用 FP16
+            check_cxx_compiler_flag("-mfp16-format=ieee" COMPILER_SUPPORTS_FP16_IEEE)
+            if(COMPILER_SUPPORTS_FP16_IEEE)
+                message(STATUS "ARM FP16 IEEE format support detected")
+                add_compile_options(-mfp16-format=ieee)
+            endif()
         endif()
     endif()
 
@@ -122,7 +137,7 @@ target_link_libraries(tiny_cv INTERFACE tiny_math)
 option(TINY_SIMD_BUILD_EXAMPLES "Build examples" ON)
 option(TINY_SIMD_BUILD_TESTS "Build tests" ON)
 option(TINY_SIMD_BUILD_BENCHMARKS "Build benchmarks" ON)
-option(TINY_SIMD_WITH_OPENCV "Build tests with OpenCV for accuracy and performance comparison" OFF)
+option(TINY_SIMD_WITH_OPENCV "Build tests with OpenCV for accuracy and performance comparison" ON)
 
 # OpenCV 集成 (可选)
 if(TINY_SIMD_WITH_OPENCV)

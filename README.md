@@ -605,7 +605,7 @@ The OpenCV comparison tests will:
 
 ## License
 
-This library is part of the claude-tiny-engine project.
+This library is part of the Feather project.
 
 ## Contributing
 

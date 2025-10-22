@@ -36,24 +36,24 @@ TEST(NEONDataTypesTest, OptimizationDetection) {
     // Verify SIMD optimization is enabled for all required types
 #ifdef TINY_SIMD_ARM_NEON
     // float32
-    EXPECT_TRUE(vec<float, 2>::is_simd_optimized) << "vec<float, 2> should use NEON";
-    EXPECT_TRUE(vec<float, 4>::is_simd_optimized) << "vec<float, 4> should use NEON";
+    EXPECT_TRUE((vec<float, 2>::is_simd_optimized)) << "vec<float, 2> should use NEON";
+    EXPECT_TRUE((vec<float, 4>::is_simd_optimized)) << "vec<float, 4> should use NEON";
 
     // int32/uint32
-    EXPECT_TRUE(vec<int32_t, 4>::is_simd_optimized) << "vec<int32_t, 4> should use NEON";
-    EXPECT_TRUE(vec<uint32_t, 4>::is_simd_optimized) << "vec<uint32_t, 4> should use NEON";
+    EXPECT_TRUE((vec<int32_t, 4>::is_simd_optimized)) << "vec<int32_t, 4> should use NEON";
+    EXPECT_TRUE((vec<uint32_t, 4>::is_simd_optimized)) << "vec<uint32_t, 4> should use NEON";
 
     // int16/uint16
-    EXPECT_TRUE(vec<int16_t, 8>::is_simd_optimized) << "vec<int16_t, 8> should use NEON";
-    EXPECT_TRUE(vec<uint16_t, 8>::is_simd_optimized) << "vec<uint16_t, 8> should use NEON";
+    EXPECT_TRUE((vec<int16_t, 8>::is_simd_optimized)) << "vec<int16_t, 8> should use NEON";
+    EXPECT_TRUE((vec<uint16_t, 8>::is_simd_optimized)) << "vec<uint16_t, 8> should use NEON";
 
     // int8/uint8
-    EXPECT_TRUE(vec<int8_t, 16>::is_simd_optimized) << "vec<int8_t, 16> should use NEON";
-    EXPECT_TRUE(vec<uint8_t, 16>::is_simd_optimized) << "vec<uint8_t, 16> should use NEON";
+    EXPECT_TRUE((vec<int8_t, 16>::is_simd_optimized)) << "vec<int8_t, 16> should use NEON";
+    EXPECT_TRUE((vec<uint8_t, 16>::is_simd_optimized)) << "vec<uint8_t, 16> should use NEON";
 
 #if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC)
     // fp16
-    EXPECT_TRUE(vec<fp16_t, 8>::is_simd_optimized) << "vec<fp16_t, 8> should use NEON";
+    EXPECT_TRUE((vec<fp16_t, 8>::is_simd_optimized)) << "vec<fp16_t, 8> should use NEON";
 #endif
 #endif
 }
