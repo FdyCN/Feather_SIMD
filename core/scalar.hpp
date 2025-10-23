@@ -161,6 +161,30 @@ struct backend_ops<scalar_backend, T, N> {
         }
         return result;
     }
+
+    //=========================================================================
+    // Vector Splitting Operations (get_low / get_high)
+    //=========================================================================
+
+    // Extract low half - returns half-size register
+    static scalar_register<T, N/2> get_low(reg_type a) {
+        static_assert(N % 2 == 0, "Vector size must be even for get_low");
+        scalar_register<T, N/2> result;
+        for (size_t i = 0; i < N/2; ++i) {
+            result.data[i] = a.data[i];
+        }
+        return result;
+    }
+
+    // Extract high half - returns half-size register
+    static scalar_register<T, N/2> get_high(reg_type a) {
+        static_assert(N % 2 == 0, "Vector size must be even for get_high");
+        scalar_register<T, N/2> result;
+        for (size_t i = 0; i < N/2; ++i) {
+            result.data[i] = a.data[N/2 + i];
+        }
+        return result;
+    }
 };
 
 } // namespace tiny_simd

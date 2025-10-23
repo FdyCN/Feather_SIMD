@@ -151,6 +151,10 @@ struct backend_ops<neon_backend, float, 4> {
     static reg_type min(reg_type a, reg_type b) { return vminq_f32(a, b); }
     static reg_type max(reg_type a, reg_type b) { return vmaxq_f32(a, b); }
     static reg_type abs(reg_type a) { return vabsq_f32(a); }
+
+    // Vector splitting operations
+    static float32x2_t get_low(reg_type a) { return vget_low_f32(a); }
+    static float32x2_t get_high(reg_type a) { return vget_high_f32(a); }
 };
 
 //=============================================================================
@@ -212,6 +216,10 @@ struct backend_ops<neon_backend, int32_t, 4> {
     static reg_type min(reg_type a, reg_type b) { return vminq_s32(a, b); }
     static reg_type max(reg_type a, reg_type b) { return vmaxq_s32(a, b); }
     static reg_type abs(reg_type a) { return vabsq_s32(a); }
+
+    // Vector splitting operations
+    static int32x2_t get_low(reg_type a) { return vget_low_s32(a); }
+    static int32x2_t get_high(reg_type a) { return vget_high_s32(a); }
 };
 
 //=============================================================================
@@ -276,6 +284,10 @@ struct backend_ops<neon_backend, uint32_t, 4> {
     static reg_type max(reg_type a, reg_type b) { return vmaxq_u32(a, b); }
 
     static reg_type abs(reg_type a) { return a; } // unsigned, already absolute
+
+    // Vector splitting operations
+    static uint32x2_t get_low(reg_type a) { return vget_low_u32(a); }
+    static uint32x2_t get_high(reg_type a) { return vget_high_u32(a); }
 };
 
 //=============================================================================
@@ -337,6 +349,10 @@ struct backend_ops<neon_backend, uint16_t, 8> {
     static reg_type min(reg_type a, reg_type b) { return vminq_u16(a, b); }
     static reg_type max(reg_type a, reg_type b) { return vmaxq_u16(a, b); }
     static reg_type abs(reg_type a) { return a; }
+
+    // Vector splitting operations
+    static uint16x4_t get_low(reg_type a) { return vget_low_u16(a); }
+    static uint16x4_t get_high(reg_type a) { return vget_high_u16(a); }
 };
 
 //=============================================================================
@@ -396,6 +412,10 @@ struct backend_ops<neon_backend, int16_t, 8> {
     static reg_type min(reg_type a, reg_type b) { return vminq_s16(a, b); }
     static reg_type max(reg_type a, reg_type b) { return vmaxq_s16(a, b); }
     static reg_type abs(reg_type a) { return vabsq_s16(a); }
+
+    // Vector splitting operations
+    static int16x4_t get_low(reg_type a) { return vget_low_s16(a); }
+    static int16x4_t get_high(reg_type a) { return vget_high_s16(a); }
 };
 
 //=============================================================================
@@ -459,6 +479,10 @@ struct backend_ops<neon_backend, uint8_t, 16> {
     static reg_type min(reg_type a, reg_type b) { return vminq_u8(a, b); }
     static reg_type max(reg_type a, reg_type b) { return vmaxq_u8(a, b); }
     static reg_type abs(reg_type a) { return a; }
+
+    // Vector splitting operations
+    static uint8x8_t get_low(reg_type a) { return vget_low_u8(a); }
+    static uint8x8_t get_high(reg_type a) { return vget_high_u8(a); }
 };
 
 //=============================================================================
@@ -520,6 +544,10 @@ struct backend_ops<neon_backend, int8_t, 16> {
     static reg_type min(reg_type a, reg_type b) { return vminq_s8(a, b); }
     static reg_type max(reg_type a, reg_type b) { return vmaxq_s8(a, b); }
     static reg_type abs(reg_type a) { return vabsq_s8(a); }
+
+    // Vector splitting operations
+    static int8x8_t get_low(reg_type a) { return vget_low_s8(a); }
+    static int8x8_t get_high(reg_type a) { return vget_high_s8(a); }
 };
 
 //=============================================================================
@@ -570,8 +598,348 @@ struct backend_ops<neon_backend, fp16_t, 8> {
     static reg_type min(reg_type a, reg_type b) { return vminq_f16(a, b); }
     static reg_type max(reg_type a, reg_type b) { return vmaxq_f16(a, b); }
     static reg_type abs(reg_type a) { return vabsq_f16(a); }
+
+
+    // Vector splitting operations
+    static float16x4_t get_low(reg_type a) { return vget_low_f16(a); }
+    static float16x4_t get_high(reg_type a) { return vget_high_f16(a); }
 };
 #endif
+
+//=============================================================================
+// NEON Backend Operations - Narrow Register Types (64-bit registers)
+//=============================================================================
+// These are needed for get_low/get_high operations
+
+// uint8x8 (64-bit narrow register)
+template<>
+struct backend_ops<neon_backend, uint8_t, 8> {
+    using reg_type = uint8x8_t;
+
+    static reg_type zero() { return vdup_n_u8(0); }
+    static reg_type set1(uint8_t scalar) { return vdup_n_u8(scalar); }
+    static reg_type load(const uint8_t* ptr) { return vld1_u8(ptr); }
+    static reg_type load_aligned(const uint8_t* ptr) { return vld1_u8(ptr); }
+
+    static reg_type load_from_initializer(std::initializer_list<uint8_t> init) {
+        alignas(8) uint8_t temp[8] = {0};
+        auto it = init.begin();
+        for (size_t i = 0; i < 8 && it != init.end(); ++i, ++it) {
+            temp[i] = *it;
+        }
+        return vld1_u8(temp);
+    }
+
+    static void store(uint8_t* ptr, reg_type reg) { vst1_u8(ptr, reg); }
+    static void store_aligned(uint8_t* ptr, reg_type reg) { vst1_u8(ptr, reg); }
+
+    static uint8_t extract(reg_type reg, size_t index) {
+        alignas(8) uint8_t temp[8];
+        vst1_u8(temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return vadd_u8(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return vsub_u8(a, b); }
+    static reg_type mul(reg_type a, reg_type b) { return vmul_u8(a, b); }
+
+    static reg_type div(reg_type a, reg_type b) {
+        alignas(8) uint8_t temp_a[8], temp_b[8], result[8];
+        vst1_u8(temp_a, a);
+        vst1_u8(temp_b, b);
+        for (size_t i = 0; i < 8; ++i) {
+            result[i] = temp_a[i] / temp_b[i];
+        }
+        return vld1_u8(result);
+    }
+
+    static reg_type neg(reg_type a) { return vsub_u8(vdup_n_u8(0), a); }
+
+    static bool equal(reg_type a, reg_type b) {
+        uint8x8_t result = vceq_u8(a, b);
+        uint64_t result64 = vget_lane_u64(vreinterpret_u64_u8(result), 0);
+        return result64 == 0xFFFFFFFFFFFFFFFFULL;
+    }
+
+    static reg_type min(reg_type a, reg_type b) { return vmin_u8(a, b); }
+    static reg_type max(reg_type a, reg_type b) { return vmax_u8(a, b); }
+    static reg_type abs(reg_type a) { return a; }
+};
+
+// int8x8 (64-bit narrow register)
+template<>
+struct backend_ops<neon_backend, int8_t, 8> {
+    using reg_type = int8x8_t;
+
+    static reg_type zero() { return vdup_n_s8(0); }
+    static reg_type set1(int8_t scalar) { return vdup_n_s8(scalar); }
+    static reg_type load(const int8_t* ptr) { return vld1_s8(ptr); }
+    static reg_type load_aligned(const int8_t* ptr) { return vld1_s8(ptr); }
+
+    static reg_type load_from_initializer(std::initializer_list<int8_t> init) {
+        alignas(8) int8_t temp[8] = {0};
+        auto it = init.begin();
+        for (size_t i = 0; i < 8 && it != init.end(); ++i, ++it) {
+            temp[i] = *it;
+        }
+        return vld1_s8(temp);
+    }
+
+    static void store(int8_t* ptr, reg_type reg) { vst1_s8(ptr, reg); }
+    static void store_aligned(int8_t* ptr, reg_type reg) { vst1_s8(ptr, reg); }
+
+    static int8_t extract(reg_type reg, size_t index) {
+        alignas(8) int8_t temp[8];
+        vst1_s8(temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return vadd_s8(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return vsub_s8(a, b); }
+    static reg_type mul(reg_type a, reg_type b) { return vmul_s8(a, b); }
+
+    static reg_type div(reg_type a, reg_type b) {
+        alignas(8) int8_t temp_a[8], temp_b[8], result[8];
+        vst1_s8(temp_a, a);
+        vst1_s8(temp_b, b);
+        for (size_t i = 0; i < 8; ++i) {
+            result[i] = temp_a[i] / temp_b[i];
+        }
+        return vld1_s8(result);
+    }
+
+    static reg_type neg(reg_type a) { return vneg_s8(a); }
+
+    static bool equal(reg_type a, reg_type b) {
+        uint8x8_t result = vceq_s8(a, b);
+        uint64_t result64 = vget_lane_u64(vreinterpret_u64_u8(result), 0);
+        return result64 == 0xFFFFFFFFFFFFFFFFULL;
+    }
+
+    static reg_type min(reg_type a, reg_type b) { return vmin_s8(a, b); }
+    static reg_type max(reg_type a, reg_type b) { return vmax_s8(a, b); }
+    static reg_type abs(reg_type a) { return vabs_s8(a); }
+};
+
+// uint16x4 (64-bit narrow register)
+template<>
+struct backend_ops<neon_backend, uint16_t, 4> {
+    using reg_type = uint16x4_t;
+
+    static reg_type zero() { return vdup_n_u16(0); }
+    static reg_type set1(uint16_t scalar) { return vdup_n_u16(scalar); }
+    static reg_type load(const uint16_t* ptr) { return vld1_u16(ptr); }
+    static reg_type load_aligned(const uint16_t* ptr) { return vld1_u16(ptr); }
+
+    static reg_type load_from_initializer(std::initializer_list<uint16_t> init) {
+        alignas(8) uint16_t temp[4] = {0};
+        auto it = init.begin();
+        for (size_t i = 0; i < 4 && it != init.end(); ++i, ++it) {
+            temp[i] = *it;
+        }
+        return vld1_u16(temp);
+    }
+
+    static void store(uint16_t* ptr, reg_type reg) { vst1_u16(ptr, reg); }
+    static void store_aligned(uint16_t* ptr, reg_type reg) { vst1_u16(ptr, reg); }
+
+    static uint16_t extract(reg_type reg, size_t index) {
+        alignas(8) uint16_t temp[4];
+        vst1_u16(temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return vadd_u16(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return vsub_u16(a, b); }
+    static reg_type mul(reg_type a, reg_type b) { return vmul_u16(a, b); }
+
+    static reg_type div(reg_type a, reg_type b) {
+        alignas(8) uint16_t temp_a[4], temp_b[4], result[4];
+        vst1_u16(temp_a, a);
+        vst1_u16(temp_b, b);
+        for (size_t i = 0; i < 4; ++i) {
+            result[i] = temp_a[i] / temp_b[i];
+        }
+        return vld1_u16(result);
+    }
+
+    static reg_type neg(reg_type a) { return vsub_u16(vdup_n_u16(0), a); }
+
+    static bool equal(reg_type a, reg_type b) {
+        uint16x4_t result = vceq_u16(a, b);
+        uint64_t result64 = vget_lane_u64(vreinterpret_u64_u16(result), 0);
+        return result64 == 0xFFFFFFFFFFFFFFFFULL;
+    }
+
+    static reg_type min(reg_type a, reg_type b) { return vmin_u16(a, b); }
+    static reg_type max(reg_type a, reg_type b) { return vmax_u16(a, b); }
+    static reg_type abs(reg_type a) { return a; }
+};
+
+// int16x4 (64-bit narrow register)
+template<>
+struct backend_ops<neon_backend, int16_t, 4> {
+    using reg_type = int16x4_t;
+
+    static reg_type zero() { return vdup_n_s16(0); }
+    static reg_type set1(int16_t scalar) { return vdup_n_s16(scalar); }
+    static reg_type load(const int16_t* ptr) { return vld1_s16(ptr); }
+    static reg_type load_aligned(const int16_t* ptr) { return vld1_s16(ptr); }
+
+    static reg_type load_from_initializer(std::initializer_list<int16_t> init) {
+        alignas(8) int16_t temp[4] = {0};
+        auto it = init.begin();
+        for (size_t i = 0; i < 4 && it != init.end(); ++i, ++it) {
+            temp[i] = *it;
+        }
+        return vld1_s16(temp);
+    }
+
+    static void store(int16_t* ptr, reg_type reg) { vst1_s16(ptr, reg); }
+    static void store_aligned(int16_t* ptr, reg_type reg) { vst1_s16(ptr, reg); }
+
+    static int16_t extract(reg_type reg, size_t index) {
+        alignas(8) int16_t temp[4];
+        vst1_s16(temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return vadd_s16(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return vsub_s16(a, b); }
+    static reg_type mul(reg_type a, reg_type b) { return vmul_s16(a, b); }
+
+    static reg_type div(reg_type a, reg_type b) {
+        alignas(8) int16_t temp_a[4], temp_b[4], result[4];
+        vst1_s16(temp_a, a);
+        vst1_s16(temp_b, b);
+        for (size_t i = 0; i < 4; ++i) {
+            result[i] = temp_a[i] / temp_b[i];
+        }
+        return vld1_s16(result);
+    }
+
+    static reg_type neg(reg_type a) { return vneg_s16(a); }
+
+    static bool equal(reg_type a, reg_type b) {
+        uint16x4_t result = vceq_s16(a, b);
+        uint64_t result64 = vget_lane_u64(vreinterpret_u64_u16(result), 0);
+        return result64 == 0xFFFFFFFFFFFFFFFFULL;
+    }
+
+    static reg_type min(reg_type a, reg_type b) { return vmin_s16(a, b); }
+    static reg_type max(reg_type a, reg_type b) { return vmax_s16(a, b); }
+    static reg_type abs(reg_type a) { return vabs_s16(a); }
+};
+
+// uint32x2 (64-bit narrow register)
+template<>
+struct backend_ops<neon_backend, uint32_t, 2> {
+    using reg_type = uint32x2_t;
+
+    static reg_type zero() { return vdup_n_u32(0); }
+    static reg_type set1(uint32_t scalar) { return vdup_n_u32(scalar); }
+    static reg_type load(const uint32_t* ptr) { return vld1_u32(ptr); }
+    static reg_type load_aligned(const uint32_t* ptr) { return vld1_u32(ptr); }
+
+    static reg_type load_from_initializer(std::initializer_list<uint32_t> init) {
+        alignas(8) uint32_t temp[2] = {0};
+        auto it = init.begin();
+        for (size_t i = 0; i < 2 && it != init.end(); ++i, ++it) {
+            temp[i] = *it;
+        }
+        return vld1_u32(temp);
+    }
+
+    static void store(uint32_t* ptr, reg_type reg) { vst1_u32(ptr, reg); }
+    static void store_aligned(uint32_t* ptr, reg_type reg) { vst1_u32(ptr, reg); }
+
+    static uint32_t extract(reg_type reg, size_t index) {
+        alignas(8) uint32_t temp[2];
+        vst1_u32(temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return vadd_u32(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return vsub_u32(a, b); }
+    static reg_type mul(reg_type a, reg_type b) { return vmul_u32(a, b); }
+
+    static reg_type div(reg_type a, reg_type b) {
+        alignas(8) uint32_t temp_a[2], temp_b[2], result[2];
+        vst1_u32(temp_a, a);
+        vst1_u32(temp_b, b);
+        for (size_t i = 0; i < 2; ++i) {
+            result[i] = temp_a[i] / temp_b[i];
+        }
+        return vld1_u32(result);
+    }
+
+    static reg_type neg(reg_type a) { return vsub_u32(vdup_n_u32(0), a); }
+
+    static bool equal(reg_type a, reg_type b) {
+        uint32x2_t result = vceq_u32(a, b);
+        uint64_t result64 = vget_lane_u64(vreinterpret_u64_u32(result), 0);
+        return result64 == 0xFFFFFFFFFFFFFFFFULL;
+    }
+
+    static reg_type min(reg_type a, reg_type b) { return vmin_u32(a, b); }
+    static reg_type max(reg_type a, reg_type b) { return vmax_u32(a, b); }
+    static reg_type abs(reg_type a) { return a; }
+};
+
+// int32x2 (64-bit narrow register)
+template<>
+struct backend_ops<neon_backend, int32_t, 2> {
+    using reg_type = int32x2_t;
+
+    static reg_type zero() { return vdup_n_s32(0); }
+    static reg_type set1(int32_t scalar) { return vdup_n_s32(scalar); }
+    static reg_type load(const int32_t* ptr) { return vld1_s32(ptr); }
+    static reg_type load_aligned(const int32_t* ptr) { return vld1_s32(ptr); }
+
+    static reg_type load_from_initializer(std::initializer_list<int32_t> init) {
+        alignas(8) int32_t temp[2] = {0};
+        auto it = init.begin();
+        for (size_t i = 0; i < 2 && it != init.end(); ++i, ++it) {
+            temp[i] = *it;
+        }
+        return vld1_s32(temp);
+    }
+
+    static void store(int32_t* ptr, reg_type reg) { vst1_s32(ptr, reg); }
+    static void store_aligned(int32_t* ptr, reg_type reg) { vst1_s32(ptr, reg); }
+
+    static int32_t extract(reg_type reg, size_t index) {
+        alignas(8) int32_t temp[2];
+        vst1_s32(temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return vadd_s32(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return vsub_s32(a, b); }
+    static reg_type mul(reg_type a, reg_type b) { return vmul_s32(a, b); }
+
+    static reg_type div(reg_type a, reg_type b) {
+        alignas(8) int32_t temp_a[2], temp_b[2], result[2];
+        vst1_s32(temp_a, a);
+        vst1_s32(temp_b, b);
+        for (size_t i = 0; i < 2; ++i) {
+            result[i] = temp_a[i] / temp_b[i];
+        }
+        return vld1_s32(result);
+    }
+
+    static reg_type neg(reg_type a) { return vneg_s32(a); }
+
+    static bool equal(reg_type a, reg_type b) {
+        uint32x2_t result = vceq_s32(a, b);
+        uint64_t result64 = vget_lane_u64(vreinterpret_u64_u32(result), 0);
+        return result64 == 0xFFFFFFFFFFFFFFFFULL;
+    }
+
+    static reg_type min(reg_type a, reg_type b) { return vmin_s32(a, b); }
+    static reg_type max(reg_type a, reg_type b) { return vmax_s32(a, b); }
+    static reg_type abs(reg_type a) { return vabs_s32(a); }
+};
 
 } // namespace tiny_simd
 

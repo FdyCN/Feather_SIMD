@@ -161,12 +161,12 @@ struct neon_has_advantage {
     static constexpr bool value =
         // float: N=2 or N=4 has NEON advantage
         (std::is_same<T, float>::value && (N == 2 || N == 4)) ||
-        // int32/uint32: N=4 has NEON advantage
-        ((std::is_same<T, int32_t>::value || std::is_same<T, uint32_t>::value) && N == 4) ||
-        // int16/uint16: N=8 has NEON advantage
-        ((std::is_same<T, int16_t>::value || std::is_same<T, uint16_t>::value) && N == 8) ||
-        // int8/uint8: N=16 has NEON advantage
-        ((std::is_same<T, int8_t>::value || std::is_same<T, uint8_t>::value) && N == 16) ||
+        // int32/uint32: N=2 or N=4 has NEON advantage
+        ((std::is_same<T, int32_t>::value || std::is_same<T, uint32_t>::value) && (N == 2 || N == 4)) ||
+        // int16/uint16: N=4 or N=8 has NEON advantage
+        ((std::is_same<T, int16_t>::value || std::is_same<T, uint16_t>::value) && (N == 4 || N == 8)) ||
+        // int8/uint8: N=8 or N=16 has NEON advantage
+        ((std::is_same<T, int8_t>::value || std::is_same<T, uint8_t>::value) && (N == 8 || N == 16)) ||
         // fp16: N=8 has NEON advantage (if supported)
         (std::is_same<T, fp16_t>::value && N == 8);
 #else
@@ -650,6 +650,32 @@ inline vec<int16_t, N, Backend> mul_wide(const vec<int8_t, N, Backend>& a, const
     return vec<int16_t, N, Backend>(result);
 }
 
+// int16 widening add -> int32
+template<size_t N, typename Backend = auto_backend>
+inline vec<int32_t, N, Backend> add_wide(const vec<int16_t, N, Backend>& a, const vec<int16_t, N, Backend>& b) {
+    alignas(32) int16_t temp_a[N], temp_b[N];
+    alignas(32) int32_t result[N];
+    a.store(temp_a);
+    b.store(temp_b);
+    for (size_t i = 0; i < N; ++i) {
+        result[i] = static_cast<int32_t>(temp_a[i]) + static_cast<int32_t>(temp_b[i]);
+    }
+    return vec<int32_t, N, Backend>(result);
+}
+
+// int16 widening mul -> int32
+template<size_t N, typename Backend = auto_backend>
+inline vec<int32_t, N, Backend> mul_wide(const vec<int16_t, N, Backend>& a, const vec<int16_t, N, Backend>& b) {
+    alignas(32) int16_t temp_a[N], temp_b[N];
+    alignas(32) int32_t result[N];
+    a.store(temp_a);
+    b.store(temp_b);
+    for (size_t i = 0; i < N; ++i) {
+        result[i] = static_cast<int32_t>(temp_a[i]) * static_cast<int32_t>(temp_b[i]);
+    }
+    return vec<int32_t, N, Backend>(result);
+}
+
 //=============================================================================
 // Saturating Operations (饱和运算防溢出)
 //=============================================================================
@@ -734,6 +760,36 @@ inline vec<int8_t, N, Backend> sub_sat(const vec<int8_t, N, Backend>& a, const v
     return vec<int8_t, N, Backend>(result);
 }
 
+// int16 saturating add
+template<size_t N, typename Backend = auto_backend>
+inline vec<int16_t, N, Backend> add_sat(const vec<int16_t, N, Backend>& a, const vec<int16_t, N, Backend>& b) {
+    alignas(32) int16_t temp_a[N], temp_b[N], result[N];
+    a.store(temp_a);
+    b.store(temp_b);
+    for (size_t i = 0; i < N; ++i) {
+        int32_t sum = static_cast<int32_t>(temp_a[i]) + static_cast<int32_t>(temp_b[i]);
+        if (sum > 32767) result[i] = 32767;
+        else if (sum < -32768) result[i] = -32768;
+        else result[i] = static_cast<int16_t>(sum);
+    }
+    return vec<int16_t, N, Backend>(result);
+}
+
+// int16 saturating sub
+template<size_t N, typename Backend = auto_backend>
+inline vec<int16_t, N, Backend> sub_sat(const vec<int16_t, N, Backend>& a, const vec<int16_t, N, Backend>& b) {
+    alignas(32) int16_t temp_a[N], temp_b[N], result[N];
+    a.store(temp_a);
+    b.store(temp_b);
+    for (size_t i = 0; i < N; ++i) {
+        int32_t diff = static_cast<int32_t>(temp_a[i]) - static_cast<int32_t>(temp_b[i]);
+        if (diff > 32767) result[i] = 32767;
+        else if (diff < -32768) result[i] = -32768;
+        else result[i] = static_cast<int16_t>(diff);
+    }
+    return vec<int16_t, N, Backend>(result);
+}
+
 //=============================================================================
 // Narrowing Saturation (窄化饱和)
 //=============================================================================
@@ -774,6 +830,47 @@ inline vec<int8_t, N, Backend> narrow_sat(const vec<int16_t, N, Backend>& wide_r
         else result[i] = static_cast<int8_t>(temp[i]);
     }
     return vec<int8_t, N, Backend>(result);
+}
+
+// int32 -> int16 with saturation
+template<size_t N, typename Backend = auto_backend>
+inline vec<int16_t, N, Backend> narrow_sat(const vec<int32_t, N, Backend>& wide_result) {
+    alignas(32) int32_t temp[N];
+    alignas(32) int16_t result[N];
+    wide_result.store(temp);
+    for (size_t i = 0; i < N; ++i) {
+        if (temp[i] > 32767) result[i] = 32767;
+        else if (temp[i] < -32768) result[i] = -32768;
+        else result[i] = static_cast<int16_t>(temp[i]);
+    }
+    return vec<int16_t, N, Backend>(result);
+}
+
+//=============================================================================
+// Vector Splitting Operations (向量拆分)
+//=============================================================================
+// Extract low/high halves of vectors - unified interface that calls backend_ops
+
+// Unified interface for get_low - calls backend_ops
+template<typename T, size_t N, typename Backend = auto_backend>
+inline vec<T, N/2, Backend> get_low(const vec<T, N, Backend>& v) {
+    static_assert(N % 2 == 0, "Vector size must be even for get_low");
+    // Resolve auto_backend to actual backend type
+    using actual_backend = typename vec<T, N, Backend>::backend_type;
+    using ops = backend_ops<actual_backend, T, N>;
+    auto low_reg = ops::get_low(v.reg());
+    return vec<T, N/2, Backend>(low_reg);
+}
+
+// Unified interface for get_high - calls backend_ops
+template<typename T, size_t N, typename Backend = auto_backend>
+inline vec<T, N/2, Backend> get_high(const vec<T, N, Backend>& v) {
+    static_assert(N % 2 == 0, "Vector size must be even for get_high");
+    // Resolve auto_backend to actual backend type
+    using actual_backend = typename vec<T, N, Backend>::backend_type;
+    using ops = backend_ops<actual_backend, T, N>;
+    auto high_reg = ops::get_high(v.reg());
+    return vec<T, N/2, Backend>(high_reg);
 }
 
 } // namespace tiny_simd
