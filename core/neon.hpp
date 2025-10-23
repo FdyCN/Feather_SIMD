@@ -599,7 +599,6 @@ struct backend_ops<neon_backend, fp16_t, 8> {
     static reg_type max(reg_type a, reg_type b) { return vmaxq_f16(a, b); }
     static reg_type abs(reg_type a) { return vabsq_f16(a); }
 
-
     // Vector splitting operations
     static float16x4_t get_low(reg_type a) { return vget_low_f16(a); }
     static float16x4_t get_high(reg_type a) { return vget_high_f16(a); }
