@@ -155,6 +155,41 @@ struct backend_ops<neon_backend, float, 4> {
     // Vector splitting operations
     static float32x2_t get_low(reg_type a) { return vget_low_f32(a); }
     static float32x2_t get_high(reg_type a) { return vget_high_f32(a); }
+
+    //-------------------------------------------------------------------------
+    // Type Conversion Operations
+    //-------------------------------------------------------------------------
+
+    // float32 -> int32 (round to nearest)
+    template<typename TargetT>
+    static typename std::enable_if<std::is_same<TargetT, int32_t>::value, int32x4_t>::type
+    convert_to_int(reg_type a) {
+        return vcvtq_s32_f32(a);  // Single NEON instruction
+    }
+
+    // float32 -> uint32 (round to nearest)
+    template<typename TargetT>
+    static typename std::enable_if<std::is_same<TargetT, uint32_t>::value, uint32x4_t>::type
+    convert_to_int(reg_type a) {
+        return vcvtq_u32_f32(a);  // Single NEON instruction
+    }
+
+    // float32 -> fp16 (4个fp32 -> 低4个fp16)
+    static float16x4_t convert_to_fp16(reg_type a) {
+#if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC)
+        return vcvt_f16_f32(a);  // Single instruction: float32x4 -> float16x4
+#else
+        // Fallback: use scalar conversion for platforms without native fp16
+        alignas(16) float temp[4];
+        vst1q_f32(temp, a);
+        float16x4_t result;
+        fp16_t* result_ptr = reinterpret_cast<fp16_t*>(&result);
+        for (int i = 0; i < 4; ++i) {
+            result_ptr[i] = static_cast<fp16_t>(temp[i]);
+        }
+        return result;
+#endif
+    }
 };
 
 //=============================================================================
@@ -220,6 +255,15 @@ struct backend_ops<neon_backend, int32_t, 4> {
     // Vector splitting operations
     static int32x2_t get_low(reg_type a) { return vget_low_s32(a); }
     static int32x2_t get_high(reg_type a) { return vget_high_s32(a); }
+
+    //-------------------------------------------------------------------------
+    // Type Conversion Operations
+    //-------------------------------------------------------------------------
+
+    // int32 -> float32
+    static float32x4_t convert_to_float(reg_type a) {
+        return vcvtq_f32_s32(a);  // Single NEON instruction
+    }
 };
 
 //=============================================================================
@@ -288,6 +332,20 @@ struct backend_ops<neon_backend, uint32_t, 4> {
     // Vector splitting operations
     static uint32x2_t get_low(reg_type a) { return vget_low_u32(a); }
     static uint32x2_t get_high(reg_type a) { return vget_high_u32(a); }
+
+    //-------------------------------------------------------------------------
+    // Type Conversion Operations
+    //-------------------------------------------------------------------------
+
+    // uint32 -> float32
+    static float32x4_t convert_to_float(reg_type a) {
+        return vcvtq_f32_u32(a);  // Single NEON instruction
+    }
+
+    // uint32 -> int32 (same width, reinterpret)
+    static int32x4_t convert_to_signed(reg_type a) {
+        return vreinterpretq_s32_u32(a);  // 0 cycle (just type alias)
+    }
 };
 
 //=============================================================================
@@ -353,6 +411,38 @@ struct backend_ops<neon_backend, uint16_t, 8> {
     // Vector splitting operations
     static uint16x4_t get_low(reg_type a) { return vget_low_u16(a); }
     static uint16x4_t get_high(reg_type a) { return vget_high_u16(a); }
+
+    //-------------------------------------------------------------------------
+    // Type Conversion Operations
+    //-------------------------------------------------------------------------
+
+    // Narrowing: uint16x8 → uint8x8
+    static uint8x8_t convert_narrow(reg_type a) {
+        return vmovn_u16(a);  // Single NEON instruction (1 cycle)
+    }
+
+    // Narrowing with saturation: uint16x8 → uint8x8
+    static uint8x8_t convert_narrow_sat(reg_type a) {
+        return vqmovn_u16(a);  // Saturate to [0, 255]
+    }
+
+    // uint16 -> int16 (same width, reinterpret)
+    static int16x8_t convert_to_signed(reg_type a) {
+        return vreinterpretq_s16_u16(a);  // 0 cycle (just type alias)
+    }
+
+    // uint16 -> int8 (narrowing with saturation to signed range)
+    static int8x8_t convert_to_signed_sat(reg_type a) {
+        // Strategy: First saturate to [0, 127], then reinterpret as signed
+        // vqmovn_u16 saturates to [0, 255], but we need [0, 127]
+        // Use vmin to clamp to 127 first
+        uint16x8_t clamped = vminq_u16(a, vdupq_n_u16(127));
+        uint8x8_t narrow = vmovn_u16(clamped);
+        return vreinterpret_s8_u8(narrow);
+    }
+
+    // Widening: uint16x4 (from low half) → uint32x4
+    // Note: 仅对 64-bit narrow register 有效,这里预留接口
 };
 
 //=============================================================================
@@ -416,6 +506,20 @@ struct backend_ops<neon_backend, int16_t, 8> {
     // Vector splitting operations
     static int16x4_t get_low(reg_type a) { return vget_low_s16(a); }
     static int16x4_t get_high(reg_type a) { return vget_high_s16(a); }
+
+    //-------------------------------------------------------------------------
+    // Type Conversion Operations
+    //-------------------------------------------------------------------------
+
+    // Narrowing: int16x8 → int8x8
+    static int8x8_t convert_narrow(reg_type a) {
+        return vmovn_s16(a);  // Single NEON instruction (1 cycle)
+    }
+
+    // Narrowing with saturation: int16x8 → int8x8
+    static int8x8_t convert_narrow_sat(reg_type a) {
+        return vqmovn_s16(a);  // Saturate to [-128, 127]
+    }
 };
 
 //=============================================================================
@@ -483,6 +587,11 @@ struct backend_ops<neon_backend, uint8_t, 16> {
     // Vector splitting operations
     static uint8x8_t get_low(reg_type a) { return vget_low_u8(a); }
     static uint8x8_t get_high(reg_type a) { return vget_high_u8(a); }
+
+    // uint8 -> int8 (same width, reinterpret)
+    static int8x16_t convert_to_signed(reg_type a) {
+        return vreinterpretq_s8_u8(a);  // 0 cycle (just type alias)
+    }
 };
 
 //=============================================================================
@@ -663,6 +772,20 @@ struct backend_ops<neon_backend, uint8_t, 8> {
     static reg_type min(reg_type a, reg_type b) { return vmin_u8(a, b); }
     static reg_type max(reg_type a, reg_type b) { return vmax_u8(a, b); }
     static reg_type abs(reg_type a) { return a; }
+
+    //-------------------------------------------------------------------------
+    // Type Conversion Operations
+    //-------------------------------------------------------------------------
+
+    // Widening: uint8x8 → uint16x8
+    static uint16x8_t convert_widen(reg_type a) {
+        return vmovl_u8(a);  // Single NEON instruction (1 cycle)
+    }
+
+    // uint8 -> int8 (same width, reinterpret)
+    static int8x8_t convert_to_signed(reg_type a) {
+        return vreinterpret_s8_u8(a);  // 0 cycle (just type alias)
+    }
 };
 
 // int8x8 (64-bit narrow register)
@@ -718,6 +841,15 @@ struct backend_ops<neon_backend, int8_t, 8> {
     static reg_type min(reg_type a, reg_type b) { return vmin_s8(a, b); }
     static reg_type max(reg_type a, reg_type b) { return vmax_s8(a, b); }
     static reg_type abs(reg_type a) { return vabs_s8(a); }
+
+    //-------------------------------------------------------------------------
+    // Type Conversion Operations
+    //-------------------------------------------------------------------------
+
+    // Widening: int8x8 → int16x8
+    static int16x8_t convert_widen(reg_type a) {
+        return vmovl_s8(a);  // Single NEON instruction (1 cycle)
+    }
 };
 
 // uint16x4 (64-bit narrow register)
@@ -773,6 +905,11 @@ struct backend_ops<neon_backend, uint16_t, 4> {
     static reg_type min(reg_type a, reg_type b) { return vmin_u16(a, b); }
     static reg_type max(reg_type a, reg_type b) { return vmax_u16(a, b); }
     static reg_type abs(reg_type a) { return a; }
+
+    // uint16 -> int16 (same width, reinterpret)
+    static int16x4_t convert_to_signed(reg_type a) {
+        return vreinterpret_s16_u16(a);  // 0 cycle (just type alias)
+    }
 };
 
 // int16x4 (64-bit narrow register)
@@ -883,6 +1020,11 @@ struct backend_ops<neon_backend, uint32_t, 2> {
     static reg_type min(reg_type a, reg_type b) { return vmin_u32(a, b); }
     static reg_type max(reg_type a, reg_type b) { return vmax_u32(a, b); }
     static reg_type abs(reg_type a) { return a; }
+
+    // uint32 -> int32 (same width, reinterpret)
+    static int32x2_t convert_to_signed(reg_type a) {
+        return vreinterpret_s32_u32(a);  // 0 cycle (just type alias)
+    }
 };
 
 // int32x2 (64-bit narrow register)
@@ -939,6 +1081,62 @@ struct backend_ops<neon_backend, int32_t, 2> {
     static reg_type max(reg_type a, reg_type b) { return vmax_s32(a, b); }
     static reg_type abs(reg_type a) { return vabs_s32(a); }
 };
+
+// fp16x4 (64-bit narrow register) - for fp16 <-> fp32 conversions
+#if defined(__ARM_FEATURE_FP16_VECTOR_ARITHMETIC)
+template<>
+struct backend_ops<neon_backend, fp16_t, 4> {
+    using reg_type = float16x4_t;
+
+    static reg_type zero() { return vdup_n_f16(0.0f); }
+    static reg_type set1(fp16_t scalar) { return vdup_n_f16(scalar); }
+    static reg_type load(const fp16_t* ptr) { return vld1_f16(ptr); }
+    static reg_type load_aligned(const fp16_t* ptr) { return vld1_f16(ptr); }
+
+    static reg_type load_from_initializer(std::initializer_list<fp16_t> init) {
+        alignas(8) fp16_t temp[4] = {0};
+        auto it = init.begin();
+        for (size_t i = 0; i < 4 && it != init.end(); ++i, ++it) {
+            temp[i] = *it;
+        }
+        return vld1_f16(temp);
+    }
+
+    static void store(fp16_t* ptr, reg_type reg) { vst1_f16(ptr, reg); }
+    static void store_aligned(fp16_t* ptr, reg_type reg) { vst1_f16(ptr, reg); }
+
+    static fp16_t extract(reg_type reg, size_t index) {
+        alignas(8) fp16_t temp[4];
+        vst1_f16(temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return vadd_f16(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return vsub_f16(a, b); }
+    static reg_type mul(reg_type a, reg_type b) { return vmul_f16(a, b); }
+    static reg_type div(reg_type a, reg_type b) { return vdiv_f16(a, b); }
+    static reg_type neg(reg_type a) { return vneg_f16(a); }
+
+    static bool equal(reg_type a, reg_type b) {
+        uint16x4_t result = vceq_f16(a, b);
+        uint64_t result64 = vget_lane_u64(vreinterpret_u64_u16(result), 0);
+        return result64 == 0xFFFFFFFFFFFFFFFFULL;
+    }
+
+    static reg_type min(reg_type a, reg_type b) { return vmin_f16(a, b); }
+    static reg_type max(reg_type a, reg_type b) { return vmax_f16(a, b); }
+    static reg_type abs(reg_type a) { return vabs_f16(a); }
+
+    //-------------------------------------------------------------------------
+    // Type Conversion Operations
+    //-------------------------------------------------------------------------
+
+    // fp16 -> fp32 (4个fp16 -> 4个fp32)
+    static float32x4_t convert_to_fp32(reg_type a) {
+        return vcvt_f32_f16(a);  // Single NEON instruction (3 cycles)
+    }
+};
+#endif
 
 } // namespace tiny_simd
 

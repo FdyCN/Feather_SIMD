@@ -167,8 +167,8 @@ struct neon_has_advantage {
         ((std::is_same<T, int16_t>::value || std::is_same<T, uint16_t>::value) && (N == 4 || N == 8)) ||
         // int8/uint8: N=8 or N=16 has NEON advantage
         ((std::is_same<T, int8_t>::value || std::is_same<T, uint8_t>::value) && (N == 8 || N == 16)) ||
-        // fp16: N=8 has NEON advantage (if supported)
-        (std::is_same<T, fp16_t>::value && N == 8);
+        // fp16: N=4 or N=8 has NEON advantage (if supported)
+        (std::is_same<T, fp16_t>::value && (N == 4 || N == 8));
 #else
     static constexpr bool value = false;
 #endif
@@ -566,285 +566,6 @@ inline vec<T, N, Backend> abs(const vec<T, N, Backend>& v) {
     return vec<T, N, Backend>(ops::abs(v.reg()));
 }
 
-//=============================================================================
-// Widening Operations (防溢出)
-//=============================================================================
-
-// Note: These generic implementations should be overridden by backend-specific optimizations
-
-// uint8 widening add -> uint16
-template<size_t N, typename Backend = auto_backend>
-inline vec<uint16_t, N, Backend> add_wide(const vec<uint8_t, N, Backend>& a, const vec<uint8_t, N, Backend>& b) {
-    alignas(32) uint8_t temp_a[N], temp_b[N];
-    alignas(32) uint16_t result[N];
-    a.store(temp_a);
-    b.store(temp_b);
-    for (size_t i = 0; i < N; ++i) {
-        result[i] = static_cast<uint16_t>(temp_a[i]) + static_cast<uint16_t>(temp_b[i]);
-    }
-    return vec<uint16_t, N, Backend>(result);
-}
-
-// uint8 widening mul -> uint16
-template<size_t N, typename Backend = auto_backend>
-inline vec<uint16_t, N, Backend> mul_wide(const vec<uint8_t, N, Backend>& a, const vec<uint8_t, N, Backend>& b) {
-    alignas(32) uint8_t temp_a[N], temp_b[N];
-    alignas(32) uint16_t result[N];
-    a.store(temp_a);
-    b.store(temp_b);
-    for (size_t i = 0; i < N; ++i) {
-        result[i] = static_cast<uint16_t>(temp_a[i]) * static_cast<uint16_t>(temp_b[i]);
-    }
-    return vec<uint16_t, N, Backend>(result);
-}
-
-// uint16 widening add -> uint32
-template<size_t N, typename Backend = auto_backend>
-inline vec<uint32_t, N, Backend> add_wide(const vec<uint16_t, N, Backend>& a, const vec<uint16_t, N, Backend>& b) {
-    alignas(32) uint16_t temp_a[N], temp_b[N];
-    alignas(32) uint32_t result[N];
-    a.store(temp_a);
-    b.store(temp_b);
-    for (size_t i = 0; i < N; ++i) {
-        result[i] = static_cast<uint32_t>(temp_a[i]) + static_cast<uint32_t>(temp_b[i]);
-    }
-    return vec<uint32_t, N, Backend>(result);
-}
-
-// uint16 widening mul -> uint32
-template<size_t N, typename Backend = auto_backend>
-inline vec<uint32_t, N, Backend> mul_wide(const vec<uint16_t, N, Backend>& a, const vec<uint16_t, N, Backend>& b) {
-    alignas(32) uint16_t temp_a[N], temp_b[N];
-    alignas(32) uint32_t result[N];
-    a.store(temp_a);
-    b.store(temp_b);
-    for (size_t i = 0; i < N; ++i) {
-        result[i] = static_cast<uint32_t>(temp_a[i]) * static_cast<uint32_t>(temp_b[i]);
-    }
-    return vec<uint32_t, N, Backend>(result);
-}
-
-// int8 widening add -> int16
-template<size_t N, typename Backend = auto_backend>
-inline vec<int16_t, N, Backend> add_wide(const vec<int8_t, N, Backend>& a, const vec<int8_t, N, Backend>& b) {
-    alignas(32) int8_t temp_a[N], temp_b[N];
-    alignas(32) int16_t result[N];
-    a.store(temp_a);
-    b.store(temp_b);
-    for (size_t i = 0; i < N; ++i) {
-        result[i] = static_cast<int16_t>(temp_a[i]) + static_cast<int16_t>(temp_b[i]);
-    }
-    return vec<int16_t, N, Backend>(result);
-}
-
-// int8 widening mul -> int16
-template<size_t N, typename Backend = auto_backend>
-inline vec<int16_t, N, Backend> mul_wide(const vec<int8_t, N, Backend>& a, const vec<int8_t, N, Backend>& b) {
-    alignas(32) int8_t temp_a[N], temp_b[N];
-    alignas(32) int16_t result[N];
-    a.store(temp_a);
-    b.store(temp_b);
-    for (size_t i = 0; i < N; ++i) {
-        result[i] = static_cast<int16_t>(temp_a[i]) * static_cast<int16_t>(temp_b[i]);
-    }
-    return vec<int16_t, N, Backend>(result);
-}
-
-// int16 widening add -> int32
-template<size_t N, typename Backend = auto_backend>
-inline vec<int32_t, N, Backend> add_wide(const vec<int16_t, N, Backend>& a, const vec<int16_t, N, Backend>& b) {
-    alignas(32) int16_t temp_a[N], temp_b[N];
-    alignas(32) int32_t result[N];
-    a.store(temp_a);
-    b.store(temp_b);
-    for (size_t i = 0; i < N; ++i) {
-        result[i] = static_cast<int32_t>(temp_a[i]) + static_cast<int32_t>(temp_b[i]);
-    }
-    return vec<int32_t, N, Backend>(result);
-}
-
-// int16 widening mul -> int32
-template<size_t N, typename Backend = auto_backend>
-inline vec<int32_t, N, Backend> mul_wide(const vec<int16_t, N, Backend>& a, const vec<int16_t, N, Backend>& b) {
-    alignas(32) int16_t temp_a[N], temp_b[N];
-    alignas(32) int32_t result[N];
-    a.store(temp_a);
-    b.store(temp_b);
-    for (size_t i = 0; i < N; ++i) {
-        result[i] = static_cast<int32_t>(temp_a[i]) * static_cast<int32_t>(temp_b[i]);
-    }
-    return vec<int32_t, N, Backend>(result);
-}
-
-//=============================================================================
-// Saturating Operations (饱和运算防溢出)
-//=============================================================================
-
-// uint8 saturating add
-template<size_t N, typename Backend = auto_backend>
-inline vec<uint8_t, N, Backend> add_sat(const vec<uint8_t, N, Backend>& a, const vec<uint8_t, N, Backend>& b) {
-    alignas(32) uint8_t temp_a[N], temp_b[N], result[N];
-    a.store(temp_a);
-    b.store(temp_b);
-    for (size_t i = 0; i < N; ++i) {
-        uint16_t sum = static_cast<uint16_t>(temp_a[i]) + static_cast<uint16_t>(temp_b[i]);
-        result[i] = (sum > 255) ? 255 : static_cast<uint8_t>(sum);
-    }
-    return vec<uint8_t, N, Backend>(result);
-}
-
-// uint8 saturating sub
-template<size_t N, typename Backend = auto_backend>
-inline vec<uint8_t, N, Backend> sub_sat(const vec<uint8_t, N, Backend>& a, const vec<uint8_t, N, Backend>& b) {
-    alignas(32) uint8_t temp_a[N], temp_b[N], result[N];
-    a.store(temp_a);
-    b.store(temp_b);
-    for (size_t i = 0; i < N; ++i) {
-        result[i] = (temp_a[i] > temp_b[i]) ? (temp_a[i] - temp_b[i]) : 0;
-    }
-    return vec<uint8_t, N, Backend>(result);
-}
-
-// uint16 saturating add
-template<size_t N, typename Backend = auto_backend>
-inline vec<uint16_t, N, Backend> add_sat(const vec<uint16_t, N, Backend>& a, const vec<uint16_t, N, Backend>& b) {
-    alignas(32) uint16_t temp_a[N], temp_b[N], result[N];
-    a.store(temp_a);
-    b.store(temp_b);
-    for (size_t i = 0; i < N; ++i) {
-        uint32_t sum = static_cast<uint32_t>(temp_a[i]) + static_cast<uint32_t>(temp_b[i]);
-        result[i] = (sum > 65535) ? 65535 : static_cast<uint16_t>(sum);
-    }
-    return vec<uint16_t, N, Backend>(result);
-}
-
-// uint16 saturating sub
-template<size_t N, typename Backend = auto_backend>
-inline vec<uint16_t, N, Backend> sub_sat(const vec<uint16_t, N, Backend>& a, const vec<uint16_t, N, Backend>& b) {
-    alignas(32) uint16_t temp_a[N], temp_b[N], result[N];
-    a.store(temp_a);
-    b.store(temp_b);
-    for (size_t i = 0; i < N; ++i) {
-        result[i] = (temp_a[i] > temp_b[i]) ? (temp_a[i] - temp_b[i]) : 0;
-    }
-    return vec<uint16_t, N, Backend>(result);
-}
-
-// int8 saturating add
-template<size_t N, typename Backend = auto_backend>
-inline vec<int8_t, N, Backend> add_sat(const vec<int8_t, N, Backend>& a, const vec<int8_t, N, Backend>& b) {
-    alignas(32) int8_t temp_a[N], temp_b[N], result[N];
-    a.store(temp_a);
-    b.store(temp_b);
-    for (size_t i = 0; i < N; ++i) {
-        int16_t sum = static_cast<int16_t>(temp_a[i]) + static_cast<int16_t>(temp_b[i]);
-        if (sum > 127) result[i] = 127;
-        else if (sum < -128) result[i] = -128;
-        else result[i] = static_cast<int8_t>(sum);
-    }
-    return vec<int8_t, N, Backend>(result);
-}
-
-// int8 saturating sub
-template<size_t N, typename Backend = auto_backend>
-inline vec<int8_t, N, Backend> sub_sat(const vec<int8_t, N, Backend>& a, const vec<int8_t, N, Backend>& b) {
-    alignas(32) int8_t temp_a[N], temp_b[N], result[N];
-    a.store(temp_a);
-    b.store(temp_b);
-    for (size_t i = 0; i < N; ++i) {
-        int16_t diff = static_cast<int16_t>(temp_a[i]) - static_cast<int16_t>(temp_b[i]);
-        if (diff > 127) result[i] = 127;
-        else if (diff < -128) result[i] = -128;
-        else result[i] = static_cast<int8_t>(diff);
-    }
-    return vec<int8_t, N, Backend>(result);
-}
-
-// int16 saturating add
-template<size_t N, typename Backend = auto_backend>
-inline vec<int16_t, N, Backend> add_sat(const vec<int16_t, N, Backend>& a, const vec<int16_t, N, Backend>& b) {
-    alignas(32) int16_t temp_a[N], temp_b[N], result[N];
-    a.store(temp_a);
-    b.store(temp_b);
-    for (size_t i = 0; i < N; ++i) {
-        int32_t sum = static_cast<int32_t>(temp_a[i]) + static_cast<int32_t>(temp_b[i]);
-        if (sum > 32767) result[i] = 32767;
-        else if (sum < -32768) result[i] = -32768;
-        else result[i] = static_cast<int16_t>(sum);
-    }
-    return vec<int16_t, N, Backend>(result);
-}
-
-// int16 saturating sub
-template<size_t N, typename Backend = auto_backend>
-inline vec<int16_t, N, Backend> sub_sat(const vec<int16_t, N, Backend>& a, const vec<int16_t, N, Backend>& b) {
-    alignas(32) int16_t temp_a[N], temp_b[N], result[N];
-    a.store(temp_a);
-    b.store(temp_b);
-    for (size_t i = 0; i < N; ++i) {
-        int32_t diff = static_cast<int32_t>(temp_a[i]) - static_cast<int32_t>(temp_b[i]);
-        if (diff > 32767) result[i] = 32767;
-        else if (diff < -32768) result[i] = -32768;
-        else result[i] = static_cast<int16_t>(diff);
-    }
-    return vec<int16_t, N, Backend>(result);
-}
-
-//=============================================================================
-// Narrowing Saturation (窄化饱和)
-//=============================================================================
-
-// uint16 -> uint8 with saturation
-template<size_t N, typename Backend = auto_backend>
-inline vec<uint8_t, N, Backend> narrow_sat(const vec<uint16_t, N, Backend>& wide_result) {
-    alignas(32) uint16_t temp[N];
-    alignas(32) uint8_t result[N];
-    wide_result.store(temp);
-    for (size_t i = 0; i < N; ++i) {
-        result[i] = (temp[i] > 255) ? 255 : static_cast<uint8_t>(temp[i]);
-    }
-    return vec<uint8_t, N, Backend>(result);
-}
-
-// uint32 -> uint16 with saturation
-template<size_t N, typename Backend = auto_backend>
-inline vec<uint16_t, N, Backend> narrow_sat(const vec<uint32_t, N, Backend>& wide_result) {
-    alignas(32) uint32_t temp[N];
-    alignas(32) uint16_t result[N];
-    wide_result.store(temp);
-    for (size_t i = 0; i < N; ++i) {
-        result[i] = (temp[i] > 65535) ? 65535 : static_cast<uint16_t>(temp[i]);
-    }
-    return vec<uint16_t, N, Backend>(result);
-}
-
-// int16 -> int8 with saturation
-template<size_t N, typename Backend = auto_backend>
-inline vec<int8_t, N, Backend> narrow_sat(const vec<int16_t, N, Backend>& wide_result) {
-    alignas(32) int16_t temp[N];
-    alignas(32) int8_t result[N];
-    wide_result.store(temp);
-    for (size_t i = 0; i < N; ++i) {
-        if (temp[i] > 127) result[i] = 127;
-        else if (temp[i] < -128) result[i] = -128;
-        else result[i] = static_cast<int8_t>(temp[i]);
-    }
-    return vec<int8_t, N, Backend>(result);
-}
-
-// int32 -> int16 with saturation
-template<size_t N, typename Backend = auto_backend>
-inline vec<int16_t, N, Backend> narrow_sat(const vec<int32_t, N, Backend>& wide_result) {
-    alignas(32) int32_t temp[N];
-    alignas(32) int16_t result[N];
-    wide_result.store(temp);
-    for (size_t i = 0; i < N; ++i) {
-        if (temp[i] > 32767) result[i] = 32767;
-        else if (temp[i] < -32768) result[i] = -32768;
-        else result[i] = static_cast<int16_t>(temp[i]);
-    }
-    return vec<int16_t, N, Backend>(result);
-}
 
 //=============================================================================
 // Vector Splitting Operations (向量拆分)
@@ -871,6 +592,203 @@ inline vec<T, N/2, Backend> get_high(const vec<T, N, Backend>& v) {
     using ops = backend_ops<actual_backend, T, N>;
     auto high_reg = ops::get_high(v.reg());
     return vec<T, N/2, Backend>(high_reg);
+}
+
+//=============================================================================
+// Type Conversion Operations (类型转换)
+//=============================================================================
+// Phase 1: Most commonly used conversions
+//   1. fp16 <-> fp32 (half precision <-> single precision float)
+//   2. int32 -> float32 (integer to float)
+//   3. float32 -> int32 (float to integer with rounding)
+
+//-----------------------------------------------------------------------------
+// Float Precision Conversions: fp16 <-> fp32
+//-----------------------------------------------------------------------------
+
+// Convert fp16 (half precision) to fp32 (single precision)
+// Usage: vec4f result = convert_fp16_to_fp32(fp16_vec);
+// NEON: Single vcvt_f32_f16 instruction (3 cycles)
+template<size_t N, typename Backend = auto_backend>
+inline vec<float, N, Backend> convert_fp16_to_fp32(const vec<fp16_t, N, Backend>& v) {
+    using actual_backend = typename vec<fp16_t, N, Backend>::backend_type;
+    using ops = backend_ops<actual_backend, fp16_t, N>;
+    auto result_reg = ops::convert_to_fp32(v.reg());
+    return vec<float, N, Backend>(result_reg);
+}
+
+// Convert fp32 (single precision) to fp16 (half precision)
+// Usage: vec<fp16_t, 4> result = convert_fp32_to_fp16(fp32_vec);
+// NEON: Single vcvt_f16_f32 instruction (3 cycles)
+template<size_t N, typename Backend = auto_backend>
+inline vec<fp16_t, N, Backend> convert_fp32_to_fp16(const vec<float, N, Backend>& v) {
+    using actual_backend = typename vec<float, N, Backend>::backend_type;
+    using ops = backend_ops<actual_backend, float, N>;
+    auto result_reg = ops::convert_to_fp16(v.reg());
+    return vec<fp16_t, N, Backend>(result_reg);
+}
+
+//-----------------------------------------------------------------------------
+// Integer-Float Conversions: int32 <-> float32
+//-----------------------------------------------------------------------------
+
+// Convert integer to float
+// Usage: vec4f result = convert_to_float(int32_vec);
+// NEON: Single vcvtq_f32_s32 or vcvtq_f32_u32 instruction (3 cycles)
+template<typename IntT, size_t N, typename Backend = auto_backend>
+inline vec<float, N, Backend> convert_to_float(const vec<IntT, N, Backend>& v) {
+    static_assert(std::is_integral<IntT>::value, "Source type must be integer");
+    using actual_backend = typename vec<IntT, N, Backend>::backend_type;
+    using ops = backend_ops<actual_backend, IntT, N>;
+    auto result_reg = ops::convert_to_float(v.reg());
+    return vec<float, N, Backend>(result_reg);
+}
+
+// Convert float to integer with rounding (round to nearest)
+// Usage: vec<int32_t, 4> result = convert_to_int<int32_t>(float_vec);
+// NEON: Single vcvtq_s32_f32 or vcvtq_u32_f32 instruction (3 cycles)
+template<typename IntT, size_t N, typename Backend = auto_backend>
+inline vec<IntT, N, Backend> convert_to_int(const vec<float, N, Backend>& v) {
+    static_assert(std::is_integral<IntT>::value, "Target type must be integer");
+    using actual_backend = typename vec<float, N, Backend>::backend_type;
+    using ops = backend_ops<actual_backend, float, N>;
+    auto result_reg = ops::template convert_to_int<IntT>(v.reg());
+    return vec<IntT, N, Backend>(result_reg);
+}
+
+//=============================================================================
+// Phase 2: Integer Width Conversions (整数宽度转换)
+//=============================================================================
+//   1. Widening conversions: int8→int16, int16→int32, etc.
+//   2. Narrowing conversions: int32→int16, int16→int8, etc.
+//   3. Saturating narrowing: prevent overflow
+
+//-----------------------------------------------------------------------------
+// Widening Conversions (扩宽转换)
+//-----------------------------------------------------------------------------
+// Automatically widen integer types to twice their size
+// NEON: vmovl_s8, vmovl_u8, vmovl_s16, vmovl_u16, vmovl_s32, vmovl_u32
+
+// Helper trait: determine widened type
+template<typename T> struct widen_type;
+template<> struct widen_type<int8_t>   { using type = int16_t; };
+template<> struct widen_type<uint8_t>  { using type = uint16_t; };
+template<> struct widen_type<int16_t>  { using type = int32_t; };
+template<> struct widen_type<uint16_t> { using type = uint32_t; };
+template<> struct widen_type<int32_t>  { using type = int64_t; };
+template<> struct widen_type<uint32_t> { using type = uint64_t; };
+
+// Widen integer vector to twice the element size
+// Usage: vec<int16_t, 8> wide = convert_widen(vec<int8_t, 8>)
+// NEON: Single vmovl instruction (1 cycle)
+template<typename T, size_t N, typename Backend = auto_backend>
+inline vec<typename widen_type<T>::type, N, Backend> convert_widen(const vec<T, N, Backend>& v) {
+    static_assert(std::is_integral<T>::value, "Source type must be integer");
+    static_assert(sizeof(T) < 8, "Cannot widen 64-bit integers");
+
+    using actual_backend = typename vec<T, N, Backend>::backend_type;
+    using ops = backend_ops<actual_backend, T, N>;
+    using target_type = typename widen_type<T>::type;
+
+    auto result_reg = ops::convert_widen(v.reg());
+    return vec<target_type, N, Backend>(result_reg);
+}
+
+//-----------------------------------------------------------------------------
+// Narrowing Conversions (收窄转换)
+//-----------------------------------------------------------------------------
+// Narrow integer types to half their size
+// NEON: vmovn_s16, vmovn_u16, vmovn_s32, vmovn_u32
+
+// Helper trait: determine narrowed type
+template<typename T> struct narrow_type;
+template<> struct narrow_type<int16_t>  { using type = int8_t; };
+template<> struct narrow_type<uint16_t> { using type = uint8_t; };
+template<> struct narrow_type<int32_t>  { using type = int16_t; };
+template<> struct narrow_type<uint32_t> { using type = uint16_t; };
+template<> struct narrow_type<int64_t>  { using type = int32_t; };
+template<> struct narrow_type<uint64_t> { using type = uint32_t; };
+
+// Narrow integer vector to half the element size (may overflow)
+// Usage: vec<int8_t, 8> narrow = convert_narrow(vec<int16_t, 8>)
+// NEON: Single vmovn instruction (1 cycle)
+template<typename T, size_t N, typename Backend = auto_backend>
+inline vec<typename narrow_type<T>::type, N, Backend> convert_narrow(const vec<T, N, Backend>& v) {
+    static_assert(std::is_integral<T>::value, "Source type must be integer");
+    static_assert(sizeof(T) > 1, "Cannot narrow 8-bit integers");
+
+    using actual_backend = typename vec<T, N, Backend>::backend_type;
+    using ops = backend_ops<actual_backend, T, N>;
+    using target_type = typename narrow_type<T>::type;
+
+    auto result_reg = ops::convert_narrow(v.reg());
+    return vec<target_type, N, Backend>(result_reg);
+}
+
+// Narrow with saturation (prevents overflow)
+// Usage: vec<uint8_t, 8> narrow = convert_narrow_sat(vec<uint16_t, 8>)
+// NEON: Single vqmovn or vqmovun instruction (1 cycle)
+template<typename T, size_t N, typename Backend = auto_backend>
+inline vec<typename narrow_type<T>::type, N, Backend> convert_narrow_sat(const vec<T, N, Backend>& v) {
+    static_assert(std::is_integral<T>::value, "Source type must be integer");
+    static_assert(sizeof(T) > 1, "Cannot narrow 8-bit integers");
+
+    using actual_backend = typename vec<T, N, Backend>::backend_type;
+    using ops = backend_ops<actual_backend, T, N>;
+    using target_type = typename narrow_type<T>::type;
+
+    auto result_reg = ops::convert_narrow_sat(v.reg());
+    return vec<target_type, N, Backend>(result_reg);
+}
+
+//=============================================================================
+// Phase 3: Unsigned to Signed Conversions (无符号 → 有符号转换)
+//=============================================================================
+//   1. Same-width conversions: uint32→int32, uint16→int16, uint8→int8
+//   2. Saturating narrowing: uint16→int8 (with saturation)
+
+//-----------------------------------------------------------------------------
+// Same-Width Unsigned to Signed (同宽度转换)
+//-----------------------------------------------------------------------------
+// Convert unsigned to signed (same width, reinterpret bits)
+// Usage: vec<int32_t, 4> s = convert_to_signed(vec<uint32_t, 4>)
+// NEON: vreinterpretq_s32_u32, vreinterpretq_s16_u16, etc. (0 cycle)
+
+template<typename T, size_t N, typename Backend = auto_backend>
+inline typename std::enable_if<
+    std::is_unsigned<T>::value,
+    vec<typename std::make_signed<T>::type, N, Backend>
+>::type
+convert_to_signed(const vec<T, N, Backend>& v) {
+    using actual_backend = typename vec<T, N, Backend>::backend_type;
+    using ops = backend_ops<actual_backend, T, N>;
+    using target_type = typename std::make_signed<T>::type;
+
+    auto result_reg = ops::convert_to_signed(v.reg());
+    return vec<target_type, N, Backend>(result_reg);
+}
+
+//-----------------------------------------------------------------------------
+// Saturating Narrowing to Signed (饱和窄化转换)
+//-----------------------------------------------------------------------------
+// Convert unsigned to signed with narrowing and saturation
+// Values > max_signed → max_signed (e.g., uint16[300] → int8[127])
+// Usage: vec<int8_t, 8> s = convert_to_signed_sat(vec<uint16_t, 8>)
+// NEON: vqmovn_u16 + reinterpret (1 cycle)
+
+template<typename T, size_t N, typename Backend = auto_backend>
+inline typename std::enable_if<
+    (std::is_unsigned<T>::value && sizeof(T) > 1),
+    vec<typename std::make_signed<typename narrow_type<T>::type>::type, N, Backend>
+>::type
+convert_to_signed_sat(const vec<T, N, Backend>& v) {
+    using actual_backend = typename vec<T, N, Backend>::backend_type;
+    using ops = backend_ops<actual_backend, T, N>;
+    using unsigned_narrow = typename narrow_type<T>::type;
+    using target_type = typename std::make_signed<unsigned_narrow>::type;
+
+    auto result_reg = ops::convert_to_signed_sat(v.reg());
+    return vec<target_type, N, Backend>(result_reg);
 }
 
 } // namespace tiny_simd
