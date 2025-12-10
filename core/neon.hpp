@@ -96,6 +96,12 @@ struct backend_ops<neon_backend, float, 2> {
     static reg_type min(reg_type a, reg_type b) { return vmin_f32(a, b); }
     static reg_type max(reg_type a, reg_type b) { return vmax_f32(a, b); }
     static reg_type abs(reg_type a) { return vabs_f32(a); }
+
+    static reg_type fma(reg_type a, reg_type b, reg_type c) {
+        // vfma_f32(acc, a, b) -> acc + a * b
+        // We want a * b + c, so we pass c as accumulator
+        return vfma_f32(c, a, b);
+    }
 };
 
 //=============================================================================
@@ -151,6 +157,11 @@ struct backend_ops<neon_backend, float, 4> {
     static reg_type min(reg_type a, reg_type b) { return vminq_f32(a, b); }
     static reg_type max(reg_type a, reg_type b) { return vmaxq_f32(a, b); }
     static reg_type abs(reg_type a) { return vabsq_f32(a); }
+
+    static reg_type fma(reg_type a, reg_type b, reg_type c) {
+        // vfmaq_f32(acc, a, b) -> acc + a * b
+        return vfmaq_f32(c, a, b);
+    }
 
     // Vector splitting operations
     static float32x2_t get_low(reg_type a) { return vget_low_f32(a); }
@@ -252,6 +263,22 @@ struct backend_ops<neon_backend, int32_t, 4> {
     static reg_type max(reg_type a, reg_type b) { return vmaxq_s32(a, b); }
     static reg_type abs(reg_type a) { return vabsq_s32(a); }
 
+    // Bitwise Operations
+    static reg_type bitwise_and(reg_type a, reg_type b) { return vandq_s32(a, b); }
+    static reg_type bitwise_or(reg_type a, reg_type b) { return vorrq_s32(a, b); }
+    static reg_type bitwise_xor(reg_type a, reg_type b) { return veorq_s32(a, b); }
+    static reg_type bitwise_not(reg_type a) { return vmvnq_s32(a); }
+    static reg_type bitwise_andnot(reg_type a, reg_type b) { return vbicq_s32(a, b); }
+
+    // Shift Operations
+    static reg_type shift_left(reg_type a, int count) {
+        return vshlq_s32(a, vdupq_n_s32(count));
+    }
+    static reg_type shift_right(reg_type a, int count) {
+        // Negative shift amount for right shift
+        return vshlq_s32(a, vdupq_n_s32(-count));
+    }
+
     // Vector splitting operations
     static int32x2_t get_low(reg_type a) { return vget_low_s32(a); }
     static int32x2_t get_high(reg_type a) { return vget_high_s32(a); }
@@ -328,6 +355,22 @@ struct backend_ops<neon_backend, uint32_t, 4> {
     static reg_type max(reg_type a, reg_type b) { return vmaxq_u32(a, b); }
 
     static reg_type abs(reg_type a) { return a; } // unsigned, already absolute
+
+    // Bitwise Operations
+    static reg_type bitwise_and(reg_type a, reg_type b) { return vandq_u32(a, b); }
+    static reg_type bitwise_or(reg_type a, reg_type b) { return vorrq_u32(a, b); }
+    static reg_type bitwise_xor(reg_type a, reg_type b) { return veorq_u32(a, b); }
+    static reg_type bitwise_not(reg_type a) { return vmvnq_u32(a); }
+    static reg_type bitwise_andnot(reg_type a, reg_type b) { return vbicq_u32(a, b); }
+
+    // Shift Operations
+    static reg_type shift_left(reg_type a, int count) {
+        return vshlq_u32(a, vdupq_n_s32(count));
+    }
+    static reg_type shift_right(reg_type a, int count) {
+        // Negative shift amount for right shift (Logical shift for unsigned)
+        return vshlq_u32(a, vdupq_n_s32(-count));
+    }
 
     // Vector splitting operations
     static uint32x2_t get_low(reg_type a) { return vget_low_u32(a); }
@@ -407,6 +450,21 @@ struct backend_ops<neon_backend, uint16_t, 8> {
     static reg_type min(reg_type a, reg_type b) { return vminq_u16(a, b); }
     static reg_type max(reg_type a, reg_type b) { return vmaxq_u16(a, b); }
     static reg_type abs(reg_type a) { return a; }
+
+    // Bitwise Operations
+    static reg_type bitwise_and(reg_type a, reg_type b) { return vandq_u16(a, b); }
+    static reg_type bitwise_or(reg_type a, reg_type b) { return vorrq_u16(a, b); }
+    static reg_type bitwise_xor(reg_type a, reg_type b) { return veorq_u16(a, b); }
+    static reg_type bitwise_not(reg_type a) { return vmvnq_u16(a); }
+    static reg_type bitwise_andnot(reg_type a, reg_type b) { return vbicq_u16(a, b); }
+
+    // Shift Operations
+    static reg_type shift_left(reg_type a, int count) {
+        return vshlq_u16(a, vdupq_n_s16(static_cast<int16_t>(count)));
+    }
+    static reg_type shift_right(reg_type a, int count) {
+        return vshlq_u16(a, vdupq_n_s16(static_cast<int16_t>(-count)));
+    }
 
     // Vector splitting operations
     static uint16x4_t get_low(reg_type a) { return vget_low_u16(a); }
@@ -503,6 +561,21 @@ struct backend_ops<neon_backend, int16_t, 8> {
     static reg_type max(reg_type a, reg_type b) { return vmaxq_s16(a, b); }
     static reg_type abs(reg_type a) { return vabsq_s16(a); }
 
+    // Bitwise Operations
+    static reg_type bitwise_and(reg_type a, reg_type b) { return vandq_s16(a, b); }
+    static reg_type bitwise_or(reg_type a, reg_type b) { return vorrq_s16(a, b); }
+    static reg_type bitwise_xor(reg_type a, reg_type b) { return veorq_s16(a, b); }
+    static reg_type bitwise_not(reg_type a) { return vmvnq_s16(a); }
+    static reg_type bitwise_andnot(reg_type a, reg_type b) { return vbicq_s16(a, b); }
+
+    // Shift Operations
+    static reg_type shift_left(reg_type a, int count) {
+        return vshlq_s16(a, vdupq_n_s16(static_cast<int16_t>(count)));
+    }
+    static reg_type shift_right(reg_type a, int count) {
+        return vshlq_s16(a, vdupq_n_s16(static_cast<int16_t>(-count)));
+    }
+
     // Vector splitting operations
     static int16x4_t get_low(reg_type a) { return vget_low_s16(a); }
     static int16x4_t get_high(reg_type a) { return vget_high_s16(a); }
@@ -584,6 +657,21 @@ struct backend_ops<neon_backend, uint8_t, 16> {
     static reg_type max(reg_type a, reg_type b) { return vmaxq_u8(a, b); }
     static reg_type abs(reg_type a) { return a; }
 
+    // Bitwise Operations
+    static reg_type bitwise_and(reg_type a, reg_type b) { return vandq_u8(a, b); }
+    static reg_type bitwise_or(reg_type a, reg_type b) { return vorrq_u8(a, b); }
+    static reg_type bitwise_xor(reg_type a, reg_type b) { return veorq_u8(a, b); }
+    static reg_type bitwise_not(reg_type a) { return vmvnq_u8(a); }
+    static reg_type bitwise_andnot(reg_type a, reg_type b) { return vbicq_u8(a, b); }
+
+    // Shift Operations
+    static reg_type shift_left(reg_type a, int count) {
+        return vshlq_u8(a, vdupq_n_s8(static_cast<int8_t>(count)));
+    }
+    static reg_type shift_right(reg_type a, int count) {
+        return vshlq_u8(a, vdupq_n_s8(static_cast<int8_t>(-count)));
+    }
+
     // Vector splitting operations
     static uint8x8_t get_low(reg_type a) { return vget_low_u8(a); }
     static uint8x8_t get_high(reg_type a) { return vget_high_u8(a); }
@@ -654,6 +742,21 @@ struct backend_ops<neon_backend, int8_t, 16> {
     static reg_type max(reg_type a, reg_type b) { return vmaxq_s8(a, b); }
     static reg_type abs(reg_type a) { return vabsq_s8(a); }
 
+    // Bitwise Operations
+    static reg_type bitwise_and(reg_type a, reg_type b) { return vandq_s8(a, b); }
+    static reg_type bitwise_or(reg_type a, reg_type b) { return vorrq_s8(a, b); }
+    static reg_type bitwise_xor(reg_type a, reg_type b) { return veorq_s8(a, b); }
+    static reg_type bitwise_not(reg_type a) { return vmvnq_s8(a); }
+    static reg_type bitwise_andnot(reg_type a, reg_type b) { return vbicq_s8(a, b); }
+
+    // Shift Operations
+    static reg_type shift_left(reg_type a, int count) {
+        return vshlq_s8(a, vdupq_n_s8(static_cast<int8_t>(count)));
+    }
+    static reg_type shift_right(reg_type a, int count) {
+        return vshlq_s8(a, vdupq_n_s8(static_cast<int8_t>(-count)));
+    }
+
     // Vector splitting operations
     static int8x8_t get_low(reg_type a) { return vget_low_s8(a); }
     static int8x8_t get_high(reg_type a) { return vget_high_s8(a); }
@@ -707,6 +810,10 @@ struct backend_ops<neon_backend, fp16_t, 8> {
     static reg_type min(reg_type a, reg_type b) { return vminq_f16(a, b); }
     static reg_type max(reg_type a, reg_type b) { return vmaxq_f16(a, b); }
     static reg_type abs(reg_type a) { return vabsq_f16(a); }
+
+    static reg_type fma(reg_type a, reg_type b, reg_type c) {
+        return vfmaq_f16(c, a, b);
+    }
 
     // Vector splitting operations
     static float16x4_t get_low(reg_type a) { return vget_low_f16(a); }

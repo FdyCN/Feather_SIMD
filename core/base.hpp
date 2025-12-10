@@ -329,6 +329,55 @@ public:
     }
 
     //=============================================================================
+    // Bitwise Operations (Integer only)
+    //=============================================================================
+
+    template<typename U = T>
+    typename std::enable_if<std::is_integral<U>::value, vec&>::type
+    operator&=(const vec& other) {
+        reg_ = ops::bitwise_and(reg_, other.reg_);
+        return *this;
+    }
+
+    template<typename U = T>
+    typename std::enable_if<std::is_integral<U>::value, vec&>::type
+    operator|=(const vec& other) {
+        reg_ = ops::bitwise_or(reg_, other.reg_);
+        return *this;
+    }
+
+    template<typename U = T>
+    typename std::enable_if<std::is_integral<U>::value, vec&>::type
+    operator^=(const vec& other) {
+        reg_ = ops::bitwise_xor(reg_, other.reg_);
+        return *this;
+    }
+
+    template<typename U = T>
+    typename std::enable_if<std::is_integral<U>::value, vec>::type
+    operator~() const {
+        return vec(ops::bitwise_not(reg_));
+    }
+
+    //=============================================================================
+    // Shift Operations (Integer only)
+    //=============================================================================
+
+    template<typename U = T>
+    typename std::enable_if<std::is_integral<U>::value, vec&>::type
+    operator<<=(int count) {
+        reg_ = ops::shift_left(reg_, count);
+        return *this;
+    }
+
+    template<typename U = T>
+    typename std::enable_if<std::is_integral<U>::value, vec&>::type
+    operator>>=(int count) {
+        reg_ = ops::shift_right(reg_, count);
+        return *this;
+    }
+
+    //=============================================================================
     // Comparison Operations
     //=============================================================================
 
@@ -420,6 +469,62 @@ inline vec<T, N, Backend> operator*(T scalar, const vec<T, N, Backend>& v) {
 template<typename T, size_t N, typename Backend>
 inline vec<T, N, Backend> operator/(const vec<T, N, Backend>& v, T scalar) {
     return v / vec<T, N, Backend>(scalar);
+}
+
+//=============================================================================
+// Bitwise Operators (Integer only)
+//=============================================================================
+
+template<typename T, size_t N, typename Backend>
+inline typename std::enable_if<std::is_integral<T>::value, vec<T, N, Backend>>::type
+operator&(const vec<T, N, Backend>& a, const vec<T, N, Backend>& b) {
+    vec<T, N, Backend> result = a;
+    result &= b;
+    return result;
+}
+
+template<typename T, size_t N, typename Backend>
+inline typename std::enable_if<std::is_integral<T>::value, vec<T, N, Backend>>::type
+operator|(const vec<T, N, Backend>& a, const vec<T, N, Backend>& b) {
+    vec<T, N, Backend> result = a;
+    result |= b;
+    return result;
+}
+
+template<typename T, size_t N, typename Backend>
+inline typename std::enable_if<std::is_integral<T>::value, vec<T, N, Backend>>::type
+operator^(const vec<T, N, Backend>& a, const vec<T, N, Backend>& b) {
+    vec<T, N, Backend> result = a;
+    result ^= b;
+    return result;
+}
+
+template<typename T, size_t N, typename Backend>
+inline typename std::enable_if<std::is_integral<T>::value, vec<T, N, Backend>>::type
+bitwise_andnot(const vec<T, N, Backend>& a, const vec<T, N, Backend>& b) {
+    // Use backend optimization if available
+    using ops = backend_ops<typename vec<T, N, Backend>::backend_type, T, N>;
+    return vec<T, N, Backend>(ops::bitwise_andnot(a.reg(), b.reg()));
+}
+
+//=============================================================================
+// Shift Operators (Integer only)
+//=============================================================================
+
+template<typename T, size_t N, typename Backend>
+inline typename std::enable_if<std::is_integral<T>::value, vec<T, N, Backend>>::type
+operator<<(const vec<T, N, Backend>& a, int count) {
+    vec<T, N, Backend> result = a;
+    result <<= count;
+    return result;
+}
+
+template<typename T, size_t N, typename Backend>
+inline typename std::enable_if<std::is_integral<T>::value, vec<T, N, Backend>>::type
+operator>>(const vec<T, N, Backend>& a, int count) {
+    vec<T, N, Backend> result = a;
+    result >>= count;
+    return result;
 }
 
 //=============================================================================
@@ -564,6 +669,15 @@ template<typename T, size_t N, typename Backend>
 inline vec<T, N, Backend> abs(const vec<T, N, Backend>& v) {
     using ops = backend_ops<typename vec<T, N, Backend>::backend_type, T, N>;
     return vec<T, N, Backend>(ops::abs(v.reg()));
+}
+
+// Fused Multiply-Add (FMA): a * b + c
+// Only for floating point types
+template<typename T, size_t N, typename Backend>
+inline typename std::enable_if<std::is_floating_point<T>::value, vec<T, N, Backend>>::type
+fma(const vec<T, N, Backend>& a, const vec<T, N, Backend>& b, const vec<T, N, Backend>& c) {
+    using ops = backend_ops<typename vec<T, N, Backend>::backend_type, T, N>;
+    return vec<T, N, Backend>(ops::fma(a.reg(), b.reg(), c.reg()));
 }
 
 

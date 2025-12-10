@@ -163,6 +163,98 @@ struct backend_ops<scalar_backend, T, N> {
     }
 
     //=========================================================================
+    // Bitwise Operations (Integer only)
+    //=========================================================================
+
+    template<typename U = T>
+    static typename std::enable_if<std::is_integral<U>::value, reg_type>::type
+    bitwise_and(reg_type a, reg_type b) {
+        reg_type result;
+        for (size_t i = 0; i < N; ++i) {
+            result.data[i] = a.data[i] & b.data[i];
+        }
+        return result;
+    }
+
+    template<typename U = T>
+    static typename std::enable_if<std::is_integral<U>::value, reg_type>::type
+    bitwise_or(reg_type a, reg_type b) {
+        reg_type result;
+        for (size_t i = 0; i < N; ++i) {
+            result.data[i] = a.data[i] | b.data[i];
+        }
+        return result;
+    }
+
+    template<typename U = T>
+    static typename std::enable_if<std::is_integral<U>::value, reg_type>::type
+    bitwise_xor(reg_type a, reg_type b) {
+        reg_type result;
+        for (size_t i = 0; i < N; ++i) {
+            result.data[i] = a.data[i] ^ b.data[i];
+        }
+        return result;
+    }
+
+    template<typename U = T>
+    static typename std::enable_if<std::is_integral<U>::value, reg_type>::type
+    bitwise_not(reg_type a) {
+        reg_type result;
+        for (size_t i = 0; i < N; ++i) {
+            result.data[i] = ~a.data[i];
+        }
+        return result;
+    }
+
+    template<typename U = T>
+    static typename std::enable_if<std::is_integral<U>::value, reg_type>::type
+    bitwise_andnot(reg_type a, reg_type b) {
+        reg_type result;
+        for (size_t i = 0; i < N; ++i) {
+            result.data[i] = a.data[i] & ~b.data[i];
+        }
+        return result;
+    }
+
+    //=========================================================================
+    // Shift Operations (Integer only)
+    //=========================================================================
+
+    template<typename U = T>
+    static typename std::enable_if<std::is_integral<U>::value, reg_type>::type
+    shift_left(reg_type a, int count) {
+        reg_type result;
+        for (size_t i = 0; i < N; ++i) {
+            result.data[i] = a.data[i] << count;
+        }
+        return result;
+    }
+
+    template<typename U = T>
+    static typename std::enable_if<std::is_integral<U>::value, reg_type>::type
+    shift_right(reg_type a, int count) {
+        reg_type result;
+        for (size_t i = 0; i < N; ++i) {
+            result.data[i] = a.data[i] >> count;
+        }
+        return result;
+    }
+
+    //=========================================================================
+    // Fused Multiply-Add (Float only)
+    //=========================================================================
+
+    template<typename U = T>
+    static typename std::enable_if<std::is_floating_point<U>::value, reg_type>::type
+    fma(reg_type a, reg_type b, reg_type c) {
+        reg_type result;
+        for (size_t i = 0; i < N; ++i) {
+            result.data[i] = std::fma(a.data[i], b.data[i], c.data[i]);
+        }
+        return result;
+    }
+
+    //=========================================================================
     // Vector Splitting Operations (get_low / get_high)
     //=========================================================================
 
