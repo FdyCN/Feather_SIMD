@@ -29,6 +29,7 @@ The library is organized into modular components:
 - **[core/base.hpp](core/base.hpp)**: Core `vec<T, N, Backend>` interface, type aliases, mathematical functions, and smart backend selection
 - **[core/scalar.hpp](core/scalar.hpp)**: Scalar backend (fallback implementation)
 - **[core/neon.hpp](core/neon.hpp)**: ARM NEON optimized backend
+- **[core/avx2.hpp](core/avx2.hpp)**: x86 AVX2 optimized backend
 
 ### Key Features
 

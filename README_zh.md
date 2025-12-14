@@ -29,6 +29,7 @@ Feather SIMD 是一个现代化、模块化的 C++11 SIMD 抽象库，提供自�
 - **[core/base.hpp](core/base.hpp)**：核心 `vec<T, N, Backend>` 接口、类型别名、数学函数和智能后端选择
 - **[core/scalar.hpp](core/scalar.hpp)**：标量后端（回退实现）
 - **[core/neon.hpp](core/neon.hpp)**：ARM NEON 优化后端
+- **[core/avx2.hpp](core/avx2.hpp)** x86 AVX2 优化后端 (WIP)
 
 ### 核心特性
 
