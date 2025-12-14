@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2025 FdyCN
+ *
+ * Distributed under MIT license.
+ * See file LICENSE for detail or copy at https://opensource.org/licenses/MIT
+ */
+
 #ifndef TINY_SIMD_AVX2_HPP
 #define TINY_SIMD_AVX2_HPP
 
