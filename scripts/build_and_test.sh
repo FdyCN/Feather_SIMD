@@ -31,7 +31,7 @@ NC='\033[0m' # No Color
 
 # Default options
 CLEAN_BUILD=false
-BUILD_TYPE="Debug"
+BUILD_TYPE="Release"
 WITH_OPENCV=false
 TEST_ONLY=false
 GTEST_FILTER=""

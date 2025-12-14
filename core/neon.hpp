@@ -2,7 +2,6 @@
 #define TINY_SIMD_NEON_HPP
 
 #include "base.hpp"
-#include "scalar.hpp"
 
 #ifdef TINY_SIMD_ARM_NEON
 #include <arm_neon.h>
@@ -210,7 +209,6 @@ struct backend_ops<neon_backend, float, 4> {
 template<>
 struct backend_ops<neon_backend, int32_t, 4> {
     using reg_type = int32x4_t;
-    using scalar_ops = backend_ops<scalar_backend, int32_t, 4>;
 
     static reg_type zero() { return vdupq_n_s32(0); }
     static reg_type set1(int32_t scalar) { return vdupq_n_s32(scalar); }

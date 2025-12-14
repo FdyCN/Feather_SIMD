@@ -29,8 +29,9 @@
 //=============================================================================
 
 // Include modular components
-#include "core/base.hpp"
-#include "core/scalar.hpp"
-#include "core/neon.hpp"
+#include "base.hpp"
+#include "scalar.hpp"
+#include "neon.hpp"
+#include "avx2.hpp"
 
 #endif // TINY_SIMD_HPP

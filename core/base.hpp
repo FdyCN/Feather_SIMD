@@ -53,6 +53,7 @@ struct scalar_backend {};  // Scalar backend (fallback)
 struct neon_backend {};    // ARM NEON backend
 struct sse_backend {};     // x86 SSE backend (future)
 struct avx_backend {};     // x86 AVX backend (future)
+struct avx2_backend {};    // x86 AVX2 backend
 struct auto_backend {};    // Automatic backend selection
 
 //=============================================================================
@@ -174,13 +175,37 @@ struct neon_has_advantage {
 #endif
 };
 
+// Helper: Check if AVX2 has advantage for given type and size
+template<typename T, size_t N>
+struct avx2_has_advantage {
+#ifdef TINY_SIMD_X86_AVX2
+    static constexpr bool value =
+        // float: N=8
+        (std::is_same<T, float>::value && N == 8) ||
+        // double: N=4
+        (std::is_same<T, double>::value && N == 4) ||
+        // int32/uint32: N=8
+        ((std::is_same<T, int32_t>::value || std::is_same<T, uint32_t>::value) && N == 8) ||
+        // int16/uint16: N=16
+        ((std::is_same<T, int16_t>::value || std::is_same<T, uint16_t>::value) && N == 16) ||
+        // int8/uint8: N=32
+        ((std::is_same<T, int8_t>::value || std::is_same<T, uint8_t>::value) && N == 32);
+#else
+    static constexpr bool value = false;
+#endif
+};
+
 // Default backend selection based on type and size
 template<typename T, size_t N>
 struct default_backend {
     using type = typename std::conditional<
         neon_has_advantage<T, N>::value,
         neon_backend,
-        scalar_backend
+        typename std::conditional<
+            avx2_has_advantage<T, N>::value,
+            avx2_backend,
+            scalar_backend
+        >::type
     >::type;
 };
 
