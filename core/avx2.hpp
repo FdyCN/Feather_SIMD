@@ -832,8 +832,6 @@ struct backend_ops<avx2_backend, int16_t, 16> {
     static reg_type bitwise_not(reg_type a) { return _mm256_xor_si256(a, _mm256_set1_epi32(-1)); }
     static reg_type bitwise_andnot(reg_type a, reg_type b) { return _mm256_andnot_si256(b, a); }
 
-    static reg_type bitwise_andnot(reg_type a, reg_type b) { return _mm256_andnot_si256(b, a); }
-
     static reg_type shift_left(reg_type a, int count) { return _mm256_slli_epi16(a, count); }
     static reg_type shift_right(reg_type a, int count) { return _mm256_srai_epi16(a, count); } // Arithmetic
 
