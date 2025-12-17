@@ -100,8 +100,18 @@ template<> struct backend_ops<avx2_backend, int32_t, 2> : backend_ops<scalar_bac
 template<> struct backend_ops<avx2_backend, uint32_t, 2> : backend_ops<scalar_backend, uint32_t, 2> {};
 template<> struct backend_ops<avx2_backend, int16_t, 4> : backend_ops<scalar_backend, int16_t, 4> {};
 template<> struct backend_ops<avx2_backend, uint16_t, 4> : backend_ops<scalar_backend, uint16_t, 4> {};
-template<> struct backend_ops<avx2_backend, int8_t, 8> : backend_ops<scalar_backend, int8_t, 8> {};
-template<> struct backend_ops<avx2_backend, uint8_t, 8> : backend_ops<scalar_backend, uint8_t, 8> {};
+template<> struct backend_ops<avx2_backend, int8_t, 8> : backend_ops<scalar_backend, int8_t, 8> {
+    static typename avx2_traits<int16_t, 8>::reg_type convert_widen(reg_type a) {
+        __m128i x = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(a.data));
+        return _mm_cvtepi8_epi16(x);
+    }
+};
+template<> struct backend_ops<avx2_backend, uint8_t, 8> : backend_ops<scalar_backend, uint8_t, 8> {
+    static typename avx2_traits<uint16_t, 8>::reg_type convert_widen(reg_type a) {
+        __m128i x = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(a.data));
+        return _mm_cvtepu8_epi16(x);
+    }
+};
 
 //=============================================================================
 // Float Operations (float32x8)
@@ -431,6 +441,16 @@ struct backend_ops<avx2_backend, uint32_t, 4> {
         return _mm_add_ps(f, adjustment);
     }
 
+    static typename avx2_traits<int32_t, 4>::reg_type convert_to_signed(reg_type a) { return a; }
+
+    static typename avx2_traits<int16_t, 4>::reg_type convert_to_signed_sat(reg_type a) {
+        __m128i clamped = _mm_min_epu32(a, _mm_set1_epi32(32767));
+        __m128i packed = _mm_packs_epi32(clamped, _mm_setzero_si128());
+        scalar_register<int16_t, 4> res;
+        _mm_storel_epi64((__m128i*)res.data, packed);
+        return res;
+    }
+
     // Split/Merge
     static typename avx2_traits<uint32_t, 2>::reg_type get_low(reg_type a) {
         scalar_register<uint32_t, 2> res;
@@ -452,6 +472,16 @@ struct backend_ops<avx2_backend, uint32_t, 4> {
 
     static reg_type combine(typename avx2_traits<uint32_t, 2>::reg_type low, typename avx2_traits<uint32_t, 2>::reg_type high) {
         return _mm_set_epi32(high.data[1], high.data[0], low.data[1], low.data[0]);
+    }
+
+    static typename avx2_traits<int32_t, 4>::reg_type convert_to_signed(reg_type a) { return a; }
+
+    static typename avx2_traits<int16_t, 4>::reg_type convert_to_signed_sat(reg_type a) {
+        __m128i clamped = _mm_min_epu32(a, _mm_set1_epi32(32767));
+        __m128i packed = _mm_packs_epi32(clamped, _mm_setzero_si128());
+        scalar_register<int16_t, 4> res;
+        _mm_storel_epi64((__m128i*)res.data, packed);
+        return res;
     }
 };
 
@@ -601,6 +631,15 @@ struct backend_ops<avx2_backend, uint32_t, 8> {
 
     static reg_type shift_left(reg_type a, int count) { return _mm256_slli_epi32(a, count); }
     static reg_type shift_right(reg_type a, int count) { return _mm256_srli_epi32(a, count); } // Logical right shift
+
+    static typename avx2_traits<int32_t, 8>::reg_type convert_to_signed(reg_type a) { return a; }
+
+    static typename avx2_traits<int16_t, 8>::reg_type convert_to_signed_sat(reg_type a) {
+        __m256i clamped = _mm256_min_epu32(a, _mm256_set1_epi32(32767));
+        __m256i packed = _mm256_packs_epi32(clamped, _mm256_setzero_si256());
+        __m256i permuted = _mm256_permute4x64_epi64(packed, _MM_SHUFFLE(3, 1, 2, 0));
+        return _mm256_castsi256_si128(permuted);
+    }
 };
 
 //=============================================================================
@@ -668,6 +707,10 @@ struct backend_ops<avx2_backend, int16_t, 8> {
 
     static reg_type shift_left(reg_type a, int count) { return _mm_slli_epi16(a, count); }
     static reg_type shift_right(reg_type a, int count) { return _mm_srai_epi16(a, count); } // Arithmetic
+
+    static typename avx2_traits<int32_t, 8>::reg_type convert_widen(reg_type a) {
+        return _mm256_cvtepi16_epi32(a);
+    }
 
     // Split/Merge
     static typename avx2_traits<int16_t, 4>::reg_type get_low(reg_type a) {
@@ -751,6 +794,20 @@ struct backend_ops<avx2_backend, uint16_t, 8> {
     static reg_type shift_left(reg_type a, int count) { return _mm_slli_epi16(a, count); }
     static reg_type shift_right(reg_type a, int count) { return _mm_srli_epi16(a, count); } // Logical
 
+    static typename avx2_traits<uint32_t, 8>::reg_type convert_widen(reg_type a) {
+        return _mm256_cvtepu16_epi32(a);
+    }
+
+    static typename avx2_traits<int16_t, 8>::reg_type convert_to_signed(reg_type a) { return a; }
+
+    static typename avx2_traits<int8_t, 8>::reg_type convert_to_signed_sat(reg_type a) {
+        __m128i clamped = _mm_min_epu16(a, _mm_set1_epi16(127));
+        __m128i packed = _mm_packs_epi16(clamped, _mm_setzero_si128());
+        scalar_register<int8_t, 8> res;
+        _mm_storel_epi64((__m128i*)res.data, packed);
+        return res;
+    }
+
     // Split/Merge
     static typename avx2_traits<uint16_t, 4>::reg_type get_low(reg_type a) {
         scalar_register<uint16_t, 4> res;
@@ -771,6 +828,16 @@ struct backend_ops<avx2_backend, uint16_t, 8> {
     static reg_type combine(typename avx2_traits<uint16_t, 4>::reg_type low, typename avx2_traits<uint16_t, 4>::reg_type high) {
         return _mm_set_epi16(high.data[3], high.data[2], high.data[1], high.data[0],
                              low.data[3], low.data[2], low.data[1], low.data[0]);
+    }
+
+    static typename avx2_traits<int16_t, 8>::reg_type convert_to_signed(reg_type a) { return a; }
+
+    static typename avx2_traits<int8_t, 8>::reg_type convert_to_signed_sat(reg_type a) {
+        __m128i clamped = _mm_min_epu16(a, _mm_set1_epi16(127));
+        __m128i packed = _mm_packs_epi16(clamped, _mm_setzero_si128());
+        scalar_register<int8_t, 8> res;
+        _mm_storel_epi64((__m128i*)res.data, packed);
+        return res;
     }
 };
 
@@ -914,6 +981,15 @@ struct backend_ops<avx2_backend, uint16_t, 16> {
 
     static reg_type shift_left(reg_type a, int count) { return _mm256_slli_epi16(a, count); }
     static reg_type shift_right(reg_type a, int count) { return _mm256_srli_epi16(a, count); } // Logical
+
+    static typename avx2_traits<int16_t, 16>::reg_type convert_to_signed(reg_type a) { return a; }
+
+    static typename avx2_traits<int8_t, 16>::reg_type convert_to_signed_sat(reg_type a) {
+        __m256i clamped = _mm256_min_epu16(a, _mm256_set1_epi16(127));
+        __m256i packed = _mm256_packs_epi16(clamped, _mm256_setzero_si256());
+        __m256i permuted = _mm256_permute4x64_epi64(packed, _MM_SHUFFLE(3, 1, 2, 0));
+        return _mm256_castsi256_si128(permuted);
+    }
 };
 
 #endif // TINY_SIMD_X86_AVX2
@@ -1002,6 +1078,10 @@ struct backend_ops<avx2_backend, int8_t, 16> {
         _mm_storeu_si128((__m128i*)ta, a);
         for(int i=0; i<16; ++i) tr[i] = ta[i] >> count;
         return _mm_loadu_si128((const __m128i*)tr);
+    }
+
+    static typename avx2_traits<int16_t, 16>::reg_type convert_widen(reg_type a) {
+        return _mm256_cvtepi8_epi16(a);
     }
 
     // Split/Merge
@@ -1103,6 +1183,12 @@ struct backend_ops<avx2_backend, uint8_t, 16> {
         return _mm_and_si128(s, mask);
     }
 
+    static typename avx2_traits<uint16_t, 16>::reg_type convert_widen(reg_type a) {
+        return _mm256_cvtepu8_epi16(a);
+    }
+
+    static typename avx2_traits<int8_t, 16>::reg_type convert_to_signed(reg_type a) { return a; }
+
     // Split/Merge
     static typename avx2_traits<uint8_t, 8>::reg_type get_low(reg_type a) {
         scalar_register<uint8_t, 8> res;
@@ -1126,6 +1212,8 @@ struct backend_ops<avx2_backend, uint8_t, 16> {
                             low.data[7], low.data[6], low.data[5], low.data[4],
                             low.data[3], low.data[2], low.data[1], low.data[0]);
     }
+
+    static typename avx2_traits<int8_t, 16>::reg_type convert_to_signed(reg_type a) { return a; }
 };
 
 template<>
@@ -1335,6 +1423,13 @@ struct backend_ops<avx2_backend, uint8_t, 32> {
         __m256i mask = _mm256_set1_epi8((unsigned char)(0xFF) >> count);
         __m256i s = _mm256_srli_epi16(a, count);
         return _mm256_and_si256(s, mask);
+    }
+
+    static typename avx2_traits<int8_t, 32>::reg_type convert_to_signed(reg_type a) { return a; }
+    static typename avx2_traits<int8_t, 32>::reg_type convert_to_signed_sat(reg_type a) {
+        __m256i clamped = _mm256_min_epu8(a, _mm256_set1_epi8(127));
+        return _mm256_packs_epi16(_mm256_cvtepu8_epi16(_mm256_castsi256_si128(clamped)),
+                                  _mm256_cvtepu8_epi16(_mm256_extracti128_si256(clamped, 1)));
     }
 };
 
