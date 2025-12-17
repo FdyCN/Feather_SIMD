@@ -76,7 +76,7 @@ struct backend_ops<avx2_backend, float, 8> {
         for (size_t i = 0; i < 8 && it != init.end(); ++i, ++it) {
             temp[i] = *it;
         }
-        return _mm256_load_ps(temp);
+        return _mm256_loadu_ps(temp);
     }
 
     static void store(float* ptr, reg_type reg) { _mm256_storeu_ps(ptr, reg); }
@@ -84,7 +84,7 @@ struct backend_ops<avx2_backend, float, 8> {
 
     static float extract(reg_type reg, size_t index) {
         alignas(32) float temp[8];
-        _mm256_store_ps(temp, reg);
+        _mm256_storeu_ps(temp, reg);
         return temp[index];
     }
 
@@ -413,7 +413,7 @@ struct backend_ops<avx2_backend, int8_t, 32> {
         for (size_t i = 0; i < 32 && it != init.end(); ++i, ++it) {
             temp[i] = *it;
         }
-        return _mm256_load_si256((const __m256i*)temp);
+        return _mm256_loadu_si256((const __m256i*)temp);
     }
 
     static void store(int8_t* ptr, reg_type reg) { _mm256_storeu_si256((__m256i*)ptr, reg); }
@@ -421,7 +421,7 @@ struct backend_ops<avx2_backend, int8_t, 32> {
 
     static int8_t extract(reg_type reg, size_t index) {
         alignas(32) int8_t temp[32];
-        _mm256_store_si256((__m256i*)temp, reg);
+        _mm256_storeu_si256((__m256i*)temp, reg);
         return temp[index];
     }
 
@@ -462,10 +462,10 @@ struct backend_ops<avx2_backend, int8_t, 32> {
 
     static reg_type div(reg_type a, reg_type b) {
         alignas(32) int8_t ta[32], tb[32], tr[32];
-        _mm256_store_si256((__m256i*)ta, a);
-        _mm256_store_si256((__m256i*)tb, b);
+        _mm256_storeu_si256((__m256i*)ta, a);
+        _mm256_storeu_si256((__m256i*)tb, b);
         for(int i=0; i<32; ++i) tr[i] = ta[i] / tb[i];
-        return _mm256_load_si256((const __m256i*)tr);
+        return _mm256_loadu_si256((const __m256i*)tr);
     }
 
     static reg_type neg(reg_type a) { return _mm256_sub_epi8(_mm256_setzero_si256(), a); }
@@ -529,7 +529,7 @@ struct backend_ops<avx2_backend, uint8_t, 32> {
         for (size_t i = 0; i < 32 && it != init.end(); ++i, ++it) {
             temp[i] = *it;
         }
-        return _mm256_load_si256((const __m256i*)temp);
+        return _mm256_loadu_si256((const __m256i*)temp);
     }
 
     static void store(uint8_t* ptr, reg_type reg) { _mm256_storeu_si256((__m256i*)ptr, reg); }
@@ -537,7 +537,7 @@ struct backend_ops<avx2_backend, uint8_t, 32> {
 
     static uint8_t extract(reg_type reg, size_t index) {
         alignas(32) uint8_t temp[32];
-        _mm256_store_si256((__m256i*)temp, reg);
+        _mm256_storeu_si256((__m256i*)temp, reg);
         return temp[index];
     }
 
@@ -547,18 +547,18 @@ struct backend_ops<avx2_backend, uint8_t, 32> {
     static reg_type mul(reg_type a, reg_type b) {
         // Scalar fallback since mullo_epi8 missing + unsigned is weird
         alignas(32) uint8_t ta[32], tb[32], tr[32];
-        _mm256_store_si256((__m256i*)ta, a);
-        _mm256_store_si256((__m256i*)tb, b);
+        _mm256_storeu_si256((__m256i*)ta, a);
+        _mm256_storeu_si256((__m256i*)tb, b);
         for(int i=0; i<32; ++i) tr[i] = ta[i] * tb[i];
-        return _mm256_load_si256((const __m256i*)tr);
+        return _mm256_loadu_si256((const __m256i*)tr);
     }
 
     static reg_type div(reg_type a, reg_type b) {
         alignas(32) uint8_t ta[32], tb[32], tr[32];
-        _mm256_store_si256((__m256i*)ta, a);
-        _mm256_store_si256((__m256i*)tb, b);
+        _mm256_storeu_si256((__m256i*)ta, a);
+        _mm256_storeu_si256((__m256i*)tb, b);
         for(int i=0; i<32; ++i) tr[i] = ta[i] / tb[i];
-        return _mm256_load_si256((const __m256i*)tr);
+        return _mm256_loadu_si256((const __m256i*)tr);
     }
 
     static reg_type neg(reg_type a) {
