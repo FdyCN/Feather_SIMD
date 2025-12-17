@@ -473,16 +473,6 @@ struct backend_ops<avx2_backend, uint32_t, 4> {
     static reg_type combine(typename avx2_traits<uint32_t, 2>::reg_type low, typename avx2_traits<uint32_t, 2>::reg_type high) {
         return _mm_set_epi32(high.data[1], high.data[0], low.data[1], low.data[0]);
     }
-
-    static typename avx2_traits<int32_t, 4>::reg_type convert_to_signed(reg_type a) { return a; }
-
-    static typename avx2_traits<int16_t, 4>::reg_type convert_to_signed_sat(reg_type a) {
-        __m128i clamped = _mm_min_epu32(a, _mm_set1_epi32(32767));
-        __m128i packed = _mm_packs_epi32(clamped, _mm_setzero_si128());
-        scalar_register<int16_t, 4> res;
-        _mm_storel_epi64((__m128i*)res.data, packed);
-        return res;
-    }
 };
 
 template<>
@@ -828,16 +818,6 @@ struct backend_ops<avx2_backend, uint16_t, 8> {
     static reg_type combine(typename avx2_traits<uint16_t, 4>::reg_type low, typename avx2_traits<uint16_t, 4>::reg_type high) {
         return _mm_set_epi16(high.data[3], high.data[2], high.data[1], high.data[0],
                              low.data[3], low.data[2], low.data[1], low.data[0]);
-    }
-
-    static typename avx2_traits<int16_t, 8>::reg_type convert_to_signed(reg_type a) { return a; }
-
-    static typename avx2_traits<int8_t, 8>::reg_type convert_to_signed_sat(reg_type a) {
-        __m128i clamped = _mm_min_epu16(a, _mm_set1_epi16(127));
-        __m128i packed = _mm_packs_epi16(clamped, _mm_setzero_si128());
-        scalar_register<int8_t, 8> res;
-        _mm_storel_epi64((__m128i*)res.data, packed);
-        return res;
     }
 };
 
@@ -1212,8 +1192,6 @@ struct backend_ops<avx2_backend, uint8_t, 16> {
                             low.data[7], low.data[6], low.data[5], low.data[4],
                             low.data[3], low.data[2], low.data[1], low.data[0]);
     }
-
-    static typename avx2_traits<int8_t, 16>::reg_type convert_to_signed(reg_type a) { return a; }
 };
 
 template<>
