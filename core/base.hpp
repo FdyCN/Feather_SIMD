@@ -188,16 +188,16 @@ template<typename T, size_t N>
 struct avx2_has_advantage {
 #ifdef TINY_SIMD_X86_AVX2
     static constexpr bool value =
-        // float: N=8
-        (std::is_same<T, float>::value && N == 8) ||
-        // double: N=4
-        (std::is_same<T, double>::value && N == 4) ||
-        // int32/uint32: N=8
-        ((std::is_same<T, int32_t>::value || std::is_same<T, uint32_t>::value) && N == 8) ||
-        // int16/uint16: N=16
-        ((std::is_same<T, int16_t>::value || std::is_same<T, uint16_t>::value) && N == 16) ||
-        // int8/uint8: N=32
-        ((std::is_same<T, int8_t>::value || std::is_same<T, uint8_t>::value) && N == 32);
+        // float: N=8 (AVX) or N=4 (SSE)
+        (std::is_same<T, float>::value && (N == 8 || N == 4)) ||
+        // double: N=4 (AVX) or N=2 (SSE)
+        (std::is_same<T, double>::value && (N == 4 || N == 2)) ||
+        // int32/uint32: N=8 (AVX) or N=4 (SSE)
+        ((std::is_same<T, int32_t>::value || std::is_same<T, uint32_t>::value) && (N == 8 || N == 4)) ||
+        // int16/uint16: N=16 (AVX) or N=8 (SSE)
+        ((std::is_same<T, int16_t>::value || std::is_same<T, uint16_t>::value) && (N == 16 || N == 8)) ||
+        // int8/uint8: N=32 (AVX) or N=16 (SSE)
+        ((std::is_same<T, int8_t>::value || std::is_same<T, uint8_t>::value) && (N == 32 || N == 16));
 #else
     static constexpr bool value = false;
 #endif

@@ -58,8 +58,91 @@ template<> struct avx2_traits<int8_t, 32> { using reg_type = __m256i; };
 template<> struct avx2_traits<uint8_t, 32> { using reg_type = __m256i; };
 
 //=============================================================================
+// 128-bit SSE Traits (for N=4 float, N=2 double, etc.)
+//=============================================================================
+
+// float (N=4)
+template<> struct avx2_traits<float, 4> { using reg_type = __m128; };
+
+// double (N=2)
+template<> struct avx2_traits<double, 2> { using reg_type = __m128d; };
+
+// int32/uint32 (N=4)
+template<> struct avx2_traits<int32_t, 4> { using reg_type = __m128i; };
+template<> struct avx2_traits<uint32_t, 4> { using reg_type = __m128i; };
+
+// int16/uint16 (N=8)
+template<> struct avx2_traits<int16_t, 8> { using reg_type = __m128i; };
+template<> struct avx2_traits<uint16_t, 8> { using reg_type = __m128i; };
+
+// int8/uint8 (N=16)
+template<> struct avx2_traits<int8_t, 16> { using reg_type = __m128i; };
+template<> struct avx2_traits<uint8_t, 16> { using reg_type = __m128i; };
+
+//=============================================================================
 // Float Operations (float32x8)
 //=============================================================================
+
+//=============================================================================
+// Float Operations (float32x4) - SSE
+//=============================================================================
+
+template<>
+struct backend_ops<avx2_backend, float, 4> {
+    using reg_type = __m128;
+
+    static reg_type zero() { return _mm_setzero_ps(); }
+    static reg_type set1(float scalar) { return _mm_set1_ps(scalar); }
+    static reg_type load(const float* ptr) { return _mm_loadu_ps(ptr); }
+    static reg_type load_aligned(const float* ptr) { return _mm_load_ps(ptr); }
+
+    static reg_type load_from_initializer(std::initializer_list<float> init) {
+        alignas(16) float temp[4] = {0};
+        auto it = init.begin();
+        for (size_t i = 0; i < 4 && it != init.end(); ++i, ++it) {
+            temp[i] = *it;
+        }
+        return _mm_loadu_ps(temp);
+    }
+
+    static void store(float* ptr, reg_type reg) { _mm_storeu_ps(ptr, reg); }
+    static void store_aligned(float* ptr, reg_type reg) { _mm_store_ps(ptr, reg); }
+
+    static float extract(reg_type reg, size_t index) {
+        alignas(16) float temp[4];
+        _mm_storeu_ps(temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return _mm_add_ps(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return _mm_sub_ps(a, b); }
+    static reg_type mul(reg_type a, reg_type b) { return _mm_mul_ps(a, b); }
+    static reg_type div(reg_type a, reg_type b) { return _mm_div_ps(a, b); }
+
+    static reg_type neg(reg_type a) {
+        return _mm_sub_ps(_mm_setzero_ps(), a);
+    }
+
+    static bool equal(reg_type a, reg_type b) {
+        return _mm_movemask_ps(_mm_cmpeq_ps(a, b)) == 0xF;
+    }
+
+    static reg_type min(reg_type a, reg_type b) { return _mm_min_ps(a, b); }
+    static reg_type max(reg_type a, reg_type b) { return _mm_max_ps(a, b); }
+    
+    static reg_type abs(reg_type a) {
+        static const __m128 sign_mask = _mm_castsi128_ps(_mm_set1_epi32(0x80000000));
+        return _mm_andnot_ps(sign_mask, a);
+    }
+
+    static reg_type fma(reg_type a, reg_type b, reg_type c) {
+        #ifdef __FMA__
+            return _mm_fmadd_ps(a, b, c);
+        #else
+            return _mm_add_ps(_mm_mul_ps(a, b), c);
+        #endif
+    }
+};
 
 template<>
 struct backend_ops<avx2_backend, float, 8> {
@@ -124,6 +207,128 @@ struct backend_ops<avx2_backend, float, 8> {
 //=============================================================================
 // Integer Operations (int32x8)
 //=============================================================================
+
+//=============================================================================
+// Integer Operations (int32x4 / uint32x4) - SSE
+//=============================================================================
+
+template<>
+struct backend_ops<avx2_backend, int32_t, 4> {
+    using reg_type = __m128i;
+
+    static reg_type zero() { return _mm_setzero_si128(); }
+    static reg_type set1(int32_t scalar) { return _mm_set1_epi32(scalar); }
+    static reg_type load(const int32_t* ptr) { return _mm_loadu_si128((const __m128i*)ptr); }
+    static reg_type load_aligned(const int32_t* ptr) { return _mm_load_si128((const __m128i*)ptr); }
+
+    static reg_type load_from_initializer(std::initializer_list<int32_t> init) {
+        alignas(16) int32_t temp[4] = {0};
+        auto it = init.begin();
+        for (size_t i = 0; i < 4 && it != init.end(); ++i, ++it) {
+            temp[i] = *it;
+        }
+        return _mm_loadu_si128((const __m128i*)temp);
+    }
+
+    static void store(int32_t* ptr, reg_type reg) { _mm_storeu_si128((__m128i*)ptr, reg); }
+    static void store_aligned(int32_t* ptr, reg_type reg) { _mm_store_si128((__m128i*)ptr, reg); }
+
+    static int32_t extract(reg_type reg, size_t index) {
+        alignas(16) int32_t temp[4];
+        _mm_storeu_si128((__m128i*)temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return _mm_add_epi32(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return _mm_sub_epi32(a, b); }
+    static reg_type mul(reg_type a, reg_type b) { return _mm_mullo_epi32(a, b); }
+    
+    static reg_type div(reg_type a, reg_type b) {
+        alignas(16) int32_t ta[4], tb[4], tr[4];
+        _mm_storeu_si128((__m128i*)ta, a);
+        _mm_storeu_si128((__m128i*)tb, b);
+        for(int i=0; i<4; ++i) tr[i] = ta[i] / tb[i];
+        return _mm_loadu_si128((const __m128i*)tr);
+    }
+
+    static reg_type neg(reg_type a) { return _mm_sub_epi32(_mm_setzero_si128(), a); }
+
+    static bool equal(reg_type a, reg_type b) {
+        return _mm_movemask_epi8(_mm_cmpeq_epi32(a, b)) == 0xFFFF;
+    }
+
+    static reg_type min(reg_type a, reg_type b) { return _mm_min_epi32(a, b); }
+    static reg_type max(reg_type a, reg_type b) { return _mm_max_epi32(a, b); }
+    static reg_type abs(reg_type a) { return _mm_abs_epi32(a); }
+
+    static reg_type bitwise_and(reg_type a, reg_type b) { return _mm_and_si128(a, b); }
+    static reg_type bitwise_or(reg_type a, reg_type b) { return _mm_or_si128(a, b); }
+    static reg_type bitwise_xor(reg_type a, reg_type b) { return _mm_xor_si128(a, b); }
+    static reg_type bitwise_not(reg_type a) { return _mm_xor_si128(a, _mm_set1_epi32(-1)); }
+    static reg_type bitwise_andnot(reg_type a, reg_type b) { return _mm_andnot_si128(b, a); }
+
+    static reg_type shift_left(reg_type a, int count) { return _mm_slli_epi32(a, count); }
+    static reg_type shift_right(reg_type a, int count) { return _mm_srai_epi32(a, count); } // Arithmetic
+};
+
+template<>
+struct backend_ops<avx2_backend, uint32_t, 4> {
+    using reg_type = __m128i;
+
+    static reg_type zero() { return _mm_setzero_si128(); }
+    static reg_type set1(uint32_t scalar) { return _mm_set1_epi32(scalar); }
+    static reg_type load(const uint32_t* ptr) { return _mm_loadu_si128((const __m128i*)ptr); }
+    static reg_type load_aligned(const uint32_t* ptr) { return _mm_load_si128((const __m128i*)ptr); }
+
+    static reg_type load_from_initializer(std::initializer_list<uint32_t> init) {
+        alignas(16) uint32_t temp[4] = {0};
+        auto it = init.begin();
+        for (size_t i = 0; i < 4 && it != init.end(); ++i, ++it) {
+            temp[i] = *it;
+        }
+        return _mm_loadu_si128((const __m128i*)temp);
+    }
+
+    static void store(uint32_t* ptr, reg_type reg) { _mm_storeu_si128((__m128i*)ptr, reg); }
+    static void store_aligned(uint32_t* ptr, reg_type reg) { _mm_store_si128((__m128i*)ptr, reg); }
+
+    static uint32_t extract(reg_type reg, size_t index) {
+        alignas(16) uint32_t temp[4];
+        _mm_storeu_si128((__m128i*)temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return _mm_add_epi32(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return _mm_sub_epi32(a, b); }
+    static reg_type mul(reg_type a, reg_type b) { return _mm_mullo_epi32(a, b); }
+    
+    static reg_type div(reg_type a, reg_type b) {
+        alignas(16) uint32_t ta[4], tb[4], tr[4];
+        _mm_storeu_si128((__m128i*)ta, a);
+        _mm_storeu_si128((__m128i*)tb, b);
+        for(int i=0; i<4; ++i) tr[i] = ta[i] / tb[i];
+        return _mm_loadu_si128((const __m128i*)tr);
+    }
+
+    static reg_type neg(reg_type a) { return _mm_sub_epi32(_mm_setzero_si128(), a); }
+
+    static bool equal(reg_type a, reg_type b) {
+        return _mm_movemask_epi8(_mm_cmpeq_epi32(a, b)) == 0xFFFF;
+    }
+
+    static reg_type min(reg_type a, reg_type b) { return _mm_min_epu32(a, b); }
+    static reg_type max(reg_type a, reg_type b) { return _mm_max_epu32(a, b); }
+    static reg_type abs(reg_type a) { return a; }
+
+    static reg_type bitwise_and(reg_type a, reg_type b) { return _mm_and_si128(a, b); }
+    static reg_type bitwise_or(reg_type a, reg_type b) { return _mm_or_si128(a, b); }
+    static reg_type bitwise_xor(reg_type a, reg_type b) { return _mm_xor_si128(a, b); }
+    static reg_type bitwise_not(reg_type a) { return _mm_xor_si128(a, _mm_set1_epi32(-1)); }
+    static reg_type bitwise_andnot(reg_type a, reg_type b) { return _mm_andnot_si128(b, a); }
+
+    static reg_type shift_left(reg_type a, int count) { return _mm_slli_epi32(a, count); }
+    static reg_type shift_right(reg_type a, int count) { return _mm_srli_epi32(a, count); } // Logical
+};
 
 template<>
 struct backend_ops<avx2_backend, int32_t, 8> {
@@ -263,6 +468,128 @@ struct backend_ops<avx2_backend, uint32_t, 8> {
 // Integer Operations (int16x16)
 //=============================================================================
 
+//=============================================================================
+// Integer Operations (int16x8 / uint16x8) - SSE
+//=============================================================================
+
+template<>
+struct backend_ops<avx2_backend, int16_t, 8> {
+    using reg_type = __m128i;
+
+    static reg_type zero() { return _mm_setzero_si128(); }
+    static reg_type set1(int16_t scalar) { return _mm_set1_epi16(scalar); }
+    static reg_type load(const int16_t* ptr) { return _mm_loadu_si128((const __m128i*)ptr); }
+    static reg_type load_aligned(const int16_t* ptr) { return _mm_load_si128((const __m128i*)ptr); }
+
+    static reg_type load_from_initializer(std::initializer_list<int16_t> init) {
+        alignas(16) int16_t temp[8] = {0};
+        auto it = init.begin();
+        for (size_t i = 0; i < 8 && it != init.end(); ++i, ++it) {
+            temp[i] = *it;
+        }
+        return _mm_loadu_si128((const __m128i*)temp);
+    }
+
+    static void store(int16_t* ptr, reg_type reg) { _mm_storeu_si128((__m128i*)ptr, reg); }
+    static void store_aligned(int16_t* ptr, reg_type reg) { _mm_store_si128((__m128i*)ptr, reg); }
+
+    static int16_t extract(reg_type reg, size_t index) {
+        alignas(16) int16_t temp[8];
+        _mm_storeu_si128((__m128i*)temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return _mm_add_epi16(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return _mm_sub_epi16(a, b); }
+    static reg_type mul(reg_type a, reg_type b) { return _mm_mullo_epi16(a, b); }
+    
+    static reg_type div(reg_type a, reg_type b) {
+        alignas(16) int16_t ta[8], tb[8], tr[8];
+        _mm_storeu_si128((__m128i*)ta, a);
+        _mm_storeu_si128((__m128i*)tb, b);
+        for(int i=0; i<8; ++i) tr[i] = ta[i] / tb[i];
+        return _mm_loadu_si128((const __m128i*)tr);
+    }
+
+    static reg_type neg(reg_type a) { return _mm_sub_epi16(_mm_setzero_si128(), a); }
+
+    static bool equal(reg_type a, reg_type b) {
+        return _mm_movemask_epi8(_mm_cmpeq_epi16(a, b)) == 0xFFFF;
+    }
+
+    static reg_type min(reg_type a, reg_type b) { return _mm_min_epi16(a, b); }
+    static reg_type max(reg_type a, reg_type b) { return _mm_max_epi16(a, b); }
+    static reg_type abs(reg_type a) { return _mm_abs_epi16(a); }
+
+    static reg_type bitwise_and(reg_type a, reg_type b) { return _mm_and_si128(a, b); }
+    static reg_type bitwise_or(reg_type a, reg_type b) { return _mm_or_si128(a, b); }
+    static reg_type bitwise_xor(reg_type a, reg_type b) { return _mm_xor_si128(a, b); }
+    static reg_type bitwise_not(reg_type a) { return _mm_xor_si128(a, _mm_set1_epi32(-1)); }
+    static reg_type bitwise_andnot(reg_type a, reg_type b) { return _mm_andnot_si128(b, a); }
+
+    static reg_type shift_left(reg_type a, int count) { return _mm_slli_epi16(a, count); }
+    static reg_type shift_right(reg_type a, int count) { return _mm_srai_epi16(a, count); } // Arithmetic
+};
+
+template<>
+struct backend_ops<avx2_backend, uint16_t, 8> {
+    using reg_type = __m128i;
+
+    static reg_type zero() { return _mm_setzero_si128(); }
+    static reg_type set1(uint16_t scalar) { return _mm_set1_epi16(scalar); }
+    static reg_type load(const uint16_t* ptr) { return _mm_loadu_si128((const __m128i*)ptr); }
+    static reg_type load_aligned(const uint16_t* ptr) { return _mm_load_si128((const __m128i*)ptr); }
+
+    static reg_type load_from_initializer(std::initializer_list<uint16_t> init) {
+        alignas(16) uint16_t temp[8] = {0};
+        auto it = init.begin();
+        for (size_t i = 0; i < 8 && it != init.end(); ++i, ++it) {
+            temp[i] = *it;
+        }
+        return _mm_loadu_si128((const __m128i*)temp);
+    }
+
+    static void store(uint16_t* ptr, reg_type reg) { _mm_storeu_si128((__m128i*)ptr, reg); }
+    static void store_aligned(uint16_t* ptr, reg_type reg) { _mm_store_si128((__m128i*)ptr, reg); }
+
+    static uint16_t extract(reg_type reg, size_t index) {
+        alignas(16) uint16_t temp[8];
+        _mm_storeu_si128((__m128i*)temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return _mm_add_epi16(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return _mm_sub_epi16(a, b); }
+    static reg_type mul(reg_type a, reg_type b) { return _mm_mullo_epi16(a, b); }
+    
+    static reg_type div(reg_type a, reg_type b) {
+        alignas(16) uint16_t ta[8], tb[8], tr[8];
+        _mm_storeu_si128((__m128i*)ta, a);
+        _mm_storeu_si128((__m128i*)tb, b);
+        for(int i=0; i<8; ++i) tr[i] = ta[i] / tb[i];
+        return _mm_loadu_si128((const __m128i*)tr);
+    }
+
+    static reg_type neg(reg_type a) { return _mm_sub_epi16(_mm_setzero_si128(), a); }
+
+    static bool equal(reg_type a, reg_type b) {
+        return _mm_movemask_epi8(_mm_cmpeq_epi16(a, b)) == 0xFFFF;
+    }
+
+    static reg_type min(reg_type a, reg_type b) { return _mm_min_epu16(a, b); }
+    static reg_type max(reg_type a, reg_type b) { return _mm_max_epu16(a, b); }
+    static reg_type abs(reg_type a) { return a; }
+
+    static reg_type bitwise_and(reg_type a, reg_type b) { return _mm_and_si128(a, b); }
+    static reg_type bitwise_or(reg_type a, reg_type b) { return _mm_or_si128(a, b); }
+    static reg_type bitwise_xor(reg_type a, reg_type b) { return _mm_xor_si128(a, b); }
+    static reg_type bitwise_not(reg_type a) { return _mm_xor_si128(a, _mm_set1_epi32(-1)); }
+    static reg_type bitwise_andnot(reg_type a, reg_type b) { return _mm_andnot_si128(b, a); }
+
+    static reg_type shift_left(reg_type a, int count) { return _mm_slli_epi16(a, count); }
+    static reg_type shift_right(reg_type a, int count) { return _mm_srli_epi16(a, count); } // Logical
+};
+
 template<>
 struct backend_ops<avx2_backend, int16_t, 16> {
     using reg_type = __m256i;
@@ -398,6 +725,163 @@ struct backend_ops<avx2_backend, uint16_t, 16> {
 //=============================================================================
 
 #ifdef TINY_SIMD_X86_AVX2
+//=============================================================================
+// Integer Operations (int8x16 / uint8x16) - SSE
+//=============================================================================
+
+template<>
+struct backend_ops<avx2_backend, int8_t, 16> {
+    using reg_type = __m128i;
+
+    static reg_type zero() { return _mm_setzero_si128(); }
+    static reg_type set1(int8_t scalar) { return _mm_set1_epi8(scalar); }
+    static reg_type load(const int8_t* ptr) { return _mm_loadu_si128((const __m128i*)ptr); }
+    static reg_type load_aligned(const int8_t* ptr) { return _mm_load_si128((const __m128i*)ptr); }
+
+    static reg_type load_from_initializer(std::initializer_list<int8_t> init) {
+        alignas(16) int8_t temp[16] = {0};
+        auto it = init.begin();
+        for (size_t i = 0; i < 16 && it != init.end(); ++i, ++it) {
+            temp[i] = *it;
+        }
+        return _mm_loadu_si128((const __m128i*)temp);
+    }
+
+    static void store(int8_t* ptr, reg_type reg) { _mm_storeu_si128((__m128i*)ptr, reg); }
+    static void store_aligned(int8_t* ptr, reg_type reg) { _mm_store_si128((__m128i*)ptr, reg); }
+
+    static int8_t extract(reg_type reg, size_t index) {
+        alignas(16) int8_t temp[16];
+        _mm_storeu_si128((__m128i*)temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return _mm_add_epi8(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return _mm_sub_epi8(a, b); }
+    
+    // Fallback multiplication for int8
+    static reg_type mul(reg_type a, reg_type b) {
+        // SSE4.1 doesn't have mullo_epi8. Fallback to scalar.
+        alignas(16) int8_t ta[16], tb[16], tr[16];
+        _mm_storeu_si128((__m128i*)ta, a);
+        _mm_storeu_si128((__m128i*)tb, b);
+        for(int i=0; i<16; ++i) tr[i] = ta[i] * tb[i];
+        return _mm_loadu_si128((const __m128i*)tr);
+    }
+
+    static reg_type div(reg_type a, reg_type b) {
+        alignas(16) int8_t ta[16], tb[16], tr[16];
+        _mm_storeu_si128((__m128i*)ta, a);
+        _mm_storeu_si128((__m128i*)tb, b);
+        for(int i=0; i<16; ++i) tr[i] = ta[i] / tb[i];
+        return _mm_loadu_si128((const __m128i*)tr);
+    }
+
+    static reg_type neg(reg_type a) { return _mm_sub_epi8(_mm_setzero_si128(), a); }
+
+    static bool equal(reg_type a, reg_type b) {
+        return _mm_movemask_epi8(_mm_cmpeq_epi8(a, b)) == 0xFFFF;
+    }
+
+    static reg_type min(reg_type a, reg_type b) { return _mm_min_epi8(a, b); }
+    static reg_type max(reg_type a, reg_type b) { return _mm_max_epi8(a, b); }
+    static reg_type abs(reg_type a) { return _mm_abs_epi8(a); }
+
+    static reg_type bitwise_and(reg_type a, reg_type b) { return _mm_and_si128(a, b); }
+    static reg_type bitwise_or(reg_type a, reg_type b) { return _mm_or_si128(a, b); }
+    static reg_type bitwise_xor(reg_type a, reg_type b) { return _mm_xor_si128(a, b); }
+    static reg_type bitwise_not(reg_type a) { return _mm_xor_si128(a, _mm_set1_epi32(-1)); }
+    static reg_type bitwise_andnot(reg_type a, reg_type b) { return _mm_andnot_si128(b, a); }
+
+    static reg_type shift_left(reg_type a, int count) {
+        __m128i mask = _mm_set1_epi8((char)(0xFF << count));
+        __m128i s = _mm_slli_epi16(a, count); 
+        return _mm_and_si128(s, mask);
+    }
+    static reg_type shift_right(reg_type a, int count) {
+        // Arithmetic shift right emulation for int8
+        alignas(16) int8_t ta[16], tr[16];
+        _mm_storeu_si128((__m128i*)ta, a);
+        for(int i=0; i<16; ++i) tr[i] = ta[i] >> count;
+        return _mm_loadu_si128((const __m128i*)tr);
+    }
+};
+
+template<>
+struct backend_ops<avx2_backend, uint8_t, 16> {
+    using reg_type = __m128i;
+
+    static reg_type zero() { return _mm_setzero_si128(); }
+    static reg_type set1(uint8_t scalar) { return _mm_set1_epi8((int8_t)scalar); }
+    static reg_type load(const uint8_t* ptr) { return _mm_loadu_si128((const __m128i*)ptr); }
+    static reg_type load_aligned(const uint8_t* ptr) { return _mm_load_si128((const __m128i*)ptr); }
+
+    static reg_type load_from_initializer(std::initializer_list<uint8_t> init) {
+        alignas(16) uint8_t temp[16] = {0};
+        auto it = init.begin();
+        for (size_t i = 0; i < 16 && it != init.end(); ++i, ++it) {
+            temp[i] = *it;
+        }
+        return _mm_loadu_si128((const __m128i*)temp);
+    }
+
+    static void store(uint8_t* ptr, reg_type reg) { _mm_storeu_si128((__m128i*)ptr, reg); }
+    static void store_aligned(uint8_t* ptr, reg_type reg) { _mm_store_si128((__m128i*)ptr, reg); }
+
+    static uint8_t extract(reg_type reg, size_t index) {
+        alignas(16) uint8_t temp[16];
+        _mm_storeu_si128((__m128i*)temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return _mm_add_epi8(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return _mm_sub_epi8(a, b); }
+    
+    static reg_type mul(reg_type a, reg_type b) {
+        // Fallback since mullo_epi8 missing
+        alignas(16) uint8_t ta[16], tb[16], tr[16];
+        _mm_storeu_si128((__m128i*)ta, a);
+        _mm_storeu_si128((__m128i*)tb, b);
+        for(int i=0; i<16; ++i) tr[i] = ta[i] * tb[i];
+        return _mm_loadu_si128((const __m128i*)tr);
+    }
+
+    static reg_type div(reg_type a, reg_type b) {
+        alignas(16) uint8_t ta[16], tb[16], tr[16];
+        _mm_storeu_si128((__m128i*)ta, a);
+        _mm_storeu_si128((__m128i*)tb, b);
+        for(int i=0; i<16; ++i) tr[i] = ta[i] / tb[i];
+        return _mm_loadu_si128((const __m128i*)tr);
+    }
+
+    static reg_type neg(reg_type a) { return _mm_sub_epi8(_mm_setzero_si128(), a); }
+
+    static bool equal(reg_type a, reg_type b) {
+        return _mm_movemask_epi8(_mm_cmpeq_epi8(a, b)) == 0xFFFF;
+    }
+
+    static reg_type min(reg_type a, reg_type b) { return _mm_min_epu8(a, b); }
+    static reg_type max(reg_type a, reg_type b) { return _mm_max_epu8(a, b); }
+    static reg_type abs(reg_type a) { return a; }
+
+    static reg_type bitwise_and(reg_type a, reg_type b) { return _mm_and_si128(a, b); }
+    static reg_type bitwise_or(reg_type a, reg_type b) { return _mm_or_si128(a, b); }
+    static reg_type bitwise_xor(reg_type a, reg_type b) { return _mm_xor_si128(a, b); }
+    static reg_type bitwise_not(reg_type a) { return _mm_xor_si128(a, _mm_set1_epi32(-1)); }
+    static reg_type bitwise_andnot(reg_type a, reg_type b) { return _mm_andnot_si128(b, a); }
+
+    static reg_type shift_left(reg_type a, int count) {
+        __m128i mask = _mm_set1_epi8((char)(0xFF << count));
+        __m128i s = _mm_slli_epi16(a, count); 
+        return _mm_and_si128(s, mask);
+    }
+    static reg_type shift_right(reg_type a, int count) { 
+        __m128i mask = _mm_set1_epi8((unsigned char)(0xFF) >> count);
+        __m128i s = _mm_srli_epi16(a, count);
+        return _mm_and_si128(s, mask);
+    }
+};
+
 template<>
 struct backend_ops<avx2_backend, int8_t, 32> {
     using reg_type = __m256i;
@@ -595,6 +1079,67 @@ struct backend_ops<avx2_backend, uint8_t, 32> {
 //=============================================================================
 // Double Operations (doublex4)
 //=============================================================================
+
+//=============================================================================
+// Double Operations (doublex2) - SSE
+//=============================================================================
+
+template<>
+struct backend_ops<avx2_backend, double, 2> {
+    using reg_type = __m128d;
+
+    static reg_type zero() { return _mm_setzero_pd(); }
+    static reg_type set1(double scalar) { return _mm_set1_pd(scalar); }
+    static reg_type load(const double* ptr) { return _mm_loadu_pd(ptr); }
+    static reg_type load_aligned(const double* ptr) { return _mm_load_pd(ptr); }
+
+    static reg_type load_from_initializer(std::initializer_list<double> init) {
+        alignas(16) double temp[2] = {0};
+        auto it = init.begin();
+        for (size_t i = 0; i < 2 && it != init.end(); ++i, ++it) {
+            temp[i] = *it;
+        }
+        return _mm_loadu_pd(temp);
+    }
+
+    static void store(double* ptr, reg_type reg) { _mm_storeu_pd(ptr, reg); }
+    static void store_aligned(double* ptr, reg_type reg) { _mm_store_pd(ptr, reg); }
+
+    static double extract(reg_type reg, size_t index) {
+        alignas(16) double temp[2];
+        _mm_storeu_pd(temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return _mm_add_pd(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return _mm_sub_pd(a, b); }
+    static reg_type mul(reg_type a, reg_type b) { return _mm_mul_pd(a, b); }
+    static reg_type div(reg_type a, reg_type b) { return _mm_div_pd(a, b); }
+
+    static reg_type neg(reg_type a) {
+        return _mm_sub_pd(_mm_setzero_pd(), a);
+    }
+
+    static bool equal(reg_type a, reg_type b) {
+        return _mm_movemask_pd(_mm_cmpeq_pd(a, b)) == 0x3;
+    }
+
+    static reg_type min(reg_type a, reg_type b) { return _mm_min_pd(a, b); }
+    static reg_type max(reg_type a, reg_type b) { return _mm_max_pd(a, b); }
+    
+    static reg_type abs(reg_type a) {
+        static const __m128d mask = _mm_castsi128_pd(_mm_set1_epi64x(0x7FFFFFFFFFFFFFFF));
+        return _mm_and_pd(a, mask);
+    }
+
+    static reg_type fma(reg_type a, reg_type b, reg_type c) {
+        #ifdef __FMA__
+            return _mm_fmadd_pd(a, b, c);
+        #else
+            return _mm_add_pd(_mm_mul_pd(a, b), c);
+        #endif
+    }
+};
 
 template<>
 struct backend_ops<avx2_backend, double, 4> {
