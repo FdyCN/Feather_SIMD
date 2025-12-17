@@ -14,6 +14,8 @@
 #include <immintrin.h>
 #endif
 
+#include "scalar.hpp" // For fallback to scalar register types
+
 namespace tiny_simd {
 
 //=============================================================================
@@ -78,6 +80,28 @@ template<> struct avx2_traits<uint16_t, 8> { using reg_type = __m128i; };
 // int8/uint8 (N=16)
 template<> struct avx2_traits<int8_t, 16> { using reg_type = __m128i; };
 template<> struct avx2_traits<uint8_t, 16> { using reg_type = __m128i; };
+
+//=============================================================================
+// Scalar Fallback Traits (for get_low on 128-bit vectors)
+//=============================================================================
+template<> struct avx2_traits<float, 2> { using reg_type = scalar_register<float, 2>; };
+template<> struct avx2_traits<double, 1> { using reg_type = scalar_register<double, 1>; };
+template<> struct avx2_traits<int32_t, 2> { using reg_type = scalar_register<int32_t, 2>; };
+template<> struct avx2_traits<uint32_t, 2> { using reg_type = scalar_register<uint32_t, 2>; };
+template<> struct avx2_traits<int16_t, 4> { using reg_type = scalar_register<int16_t, 4>; };
+template<> struct avx2_traits<uint16_t, 4> { using reg_type = scalar_register<uint16_t, 4>; };
+template<> struct avx2_traits<int8_t, 8> { using reg_type = scalar_register<int8_t, 8>; };
+template<> struct avx2_traits<uint8_t, 8> { using reg_type = scalar_register<uint8_t, 8>; };
+
+// Fallback ops inheritance
+template<> struct backend_ops<avx2_backend, float, 2> : backend_ops<scalar_backend, float, 2> {};
+template<> struct backend_ops<avx2_backend, double, 1> : backend_ops<scalar_backend, double, 1> {};
+template<> struct backend_ops<avx2_backend, int32_t, 2> : backend_ops<scalar_backend, int32_t, 2> {};
+template<> struct backend_ops<avx2_backend, uint32_t, 2> : backend_ops<scalar_backend, uint32_t, 2> {};
+template<> struct backend_ops<avx2_backend, int16_t, 4> : backend_ops<scalar_backend, int16_t, 4> {};
+template<> struct backend_ops<avx2_backend, uint16_t, 4> : backend_ops<scalar_backend, uint16_t, 4> {};
+template<> struct backend_ops<avx2_backend, int8_t, 8> : backend_ops<scalar_backend, int8_t, 8> {};
+template<> struct backend_ops<avx2_backend, uint8_t, 8> : backend_ops<scalar_backend, uint8_t, 8> {};
 
 //=============================================================================
 // Float Operations (float32x8)
@@ -148,6 +172,35 @@ struct backend_ops<avx2_backend, float, 4> {
         // Only 32-bit int supported for N=4 float
         static_assert(sizeof(IntT) == 4, "Only 32-bit integers supported for conversion from float32x4");
         return _mm_cvttps_epi32(a);
+    }
+
+    // Split/Merge
+    static typename avx2_traits<float, 2>::reg_type get_low(reg_type a) {
+        scalar_register<float, 2> res;
+        _mm_storeu_ps(res.data, a); // Stores 4 floats, but scalar reg is size 2. We overwrite stack or need careful store?
+        // Wait, storeu_ps writes 16 bytes. scalar_register<float, 2> is 8 bytes.
+        // Stack corruption risk if we write directly to res.data!
+        alignas(16) float temp[4];
+        _mm_storeu_ps(temp, a);
+        res.data[0] = temp[0];
+        res.data[1] = temp[1];
+        return res;
+    }
+
+    static typename avx2_traits<float, 2>::reg_type get_high(reg_type a) {
+        scalar_register<float, 2> res;
+        alignas(16) float temp[4];
+        _mm_storeu_ps(temp, a);
+        res.data[0] = temp[2];
+        res.data[1] = temp[3];
+        return res;
+    }
+    
+    static reg_type combine(typename avx2_traits<float, 2>::reg_type low, typename avx2_traits<float, 2>::reg_type high) {
+         // Load from scalar regs
+         // We can use _mm_set_ps(h1, h0, l1, l0) -> arguments are reversed usually?
+         // _mm_set_ps(e3, e2, e1, e0)
+         return _mm_set_ps(high.data[1], high.data[0], low.data[1], low.data[0]);
     }
 };
 
@@ -280,6 +333,29 @@ struct backend_ops<avx2_backend, int32_t, 4> {
     static __m128 convert_to_float(reg_type a) {
         return _mm_cvtepi32_ps(a);
     }
+
+    // Split/Merge
+    static typename avx2_traits<int32_t, 2>::reg_type get_low(reg_type a) {
+        scalar_register<int32_t, 2> res;
+        alignas(16) int32_t temp[4];
+        _mm_storeu_si128((__m128i*)temp, a);
+        res.data[0] = temp[0];
+        res.data[1] = temp[1];
+        return res;
+    }
+
+    static typename avx2_traits<int32_t, 2>::reg_type get_high(reg_type a) {
+        scalar_register<int32_t, 2> res;
+        alignas(16) int32_t temp[4];
+        _mm_storeu_si128((__m128i*)temp, a);
+        res.data[0] = temp[2];
+        res.data[1] = temp[3];
+        return res;
+    }
+
+    static reg_type combine(typename avx2_traits<int32_t, 2>::reg_type low, typename avx2_traits<int32_t, 2>::reg_type high) {
+        return _mm_set_epi32(high.data[1], high.data[0], low.data[1], low.data[0]);
+    }
 };
 
 template<>
@@ -354,6 +430,29 @@ struct backend_ops<avx2_backend, uint32_t, 4> {
         
         return _mm_add_ps(f, adjustment);
     }
+
+    // Split/Merge
+    static typename avx2_traits<uint32_t, 2>::reg_type get_low(reg_type a) {
+        scalar_register<uint32_t, 2> res;
+        alignas(16) uint32_t temp[4];
+        _mm_storeu_si128((__m128i*)temp, a);
+        res.data[0] = temp[0];
+        res.data[1] = temp[1];
+        return res;
+    }
+
+    static typename avx2_traits<uint32_t, 2>::reg_type get_high(reg_type a) {
+        scalar_register<uint32_t, 2> res;
+        alignas(16) uint32_t temp[4];
+        _mm_storeu_si128((__m128i*)temp, a);
+        res.data[0] = temp[2];
+        res.data[1] = temp[3];
+        return res;
+    }
+
+    static reg_type combine(typename avx2_traits<uint32_t, 2>::reg_type low, typename avx2_traits<uint32_t, 2>::reg_type high) {
+        return _mm_set_epi32(high.data[1], high.data[0], low.data[1], low.data[0]);
+    }
 };
 
 template<>
@@ -419,6 +518,20 @@ struct backend_ops<avx2_backend, int32_t, 8> {
     // Shifts
     static reg_type shift_left(reg_type a, int count) { return _mm256_slli_epi32(a, count); }
     static reg_type shift_right(reg_type a, int count) { return _mm256_srai_epi32(a, count); } // Arithmetic right shift
+
+    // Split/Merge
+    static typename avx2_traits<int32_t, 4>::reg_type get_low(reg_type a) {
+        return _mm256_castsi256_si128(a);
+    }
+
+    static typename avx2_traits<int32_t, 4>::reg_type get_high(reg_type a) {
+        return _mm256_extracti128_si256(a, 1);
+    }
+
+    static reg_type combine(typename avx2_traits<int32_t, 4>::reg_type low, typename avx2_traits<int32_t, 4>::reg_type high) {
+        __m256i temp = _mm256_castsi128_si256(low);
+        return _mm256_inserti128_si256(temp, high, 1);
+    }
 };
 
 #endif // TINY_SIMD_X86_AVX2
@@ -555,6 +668,29 @@ struct backend_ops<avx2_backend, int16_t, 8> {
 
     static reg_type shift_left(reg_type a, int count) { return _mm_slli_epi16(a, count); }
     static reg_type shift_right(reg_type a, int count) { return _mm_srai_epi16(a, count); } // Arithmetic
+
+    // Split/Merge
+    static typename avx2_traits<int16_t, 4>::reg_type get_low(reg_type a) {
+        scalar_register<int16_t, 4> res;
+        alignas(16) int16_t temp[8];
+        _mm_storeu_si128((__m128i*)temp, a);
+        for(int i=0; i<4; ++i) res.data[i] = temp[i];
+        return res;
+    }
+
+    static typename avx2_traits<int16_t, 4>::reg_type get_high(reg_type a) {
+        scalar_register<int16_t, 4> res;
+        alignas(16) int16_t temp[8];
+        _mm_storeu_si128((__m128i*)temp, a);
+        for(int i=0; i<4; ++i) res.data[i] = temp[4+i];
+        return res;
+    }
+
+    static reg_type combine(typename avx2_traits<int16_t, 4>::reg_type low, typename avx2_traits<int16_t, 4>::reg_type high) {
+        // _mm_set_epi16 arguments are high to low: e7, e6... e0
+        return _mm_set_epi16(high.data[3], high.data[2], high.data[1], high.data[0],
+                             low.data[3], low.data[2], low.data[1], low.data[0]);
+    }
 };
 
 template<>
@@ -614,6 +750,28 @@ struct backend_ops<avx2_backend, uint16_t, 8> {
 
     static reg_type shift_left(reg_type a, int count) { return _mm_slli_epi16(a, count); }
     static reg_type shift_right(reg_type a, int count) { return _mm_srli_epi16(a, count); } // Logical
+
+    // Split/Merge
+    static typename avx2_traits<uint16_t, 4>::reg_type get_low(reg_type a) {
+        scalar_register<uint16_t, 4> res;
+        alignas(16) uint16_t temp[8];
+        _mm_storeu_si128((__m128i*)temp, a);
+        for(int i=0; i<4; ++i) res.data[i] = temp[i];
+        return res;
+    }
+
+    static typename avx2_traits<uint16_t, 4>::reg_type get_high(reg_type a) {
+        scalar_register<uint16_t, 4> res;
+        alignas(16) uint16_t temp[8];
+        _mm_storeu_si128((__m128i*)temp, a);
+        for(int i=0; i<4; ++i) res.data[i] = temp[4+i];
+        return res;
+    }
+
+    static reg_type combine(typename avx2_traits<uint16_t, 4>::reg_type low, typename avx2_traits<uint16_t, 4>::reg_type high) {
+        return _mm_set_epi16(high.data[3], high.data[2], high.data[1], high.data[0],
+                             low.data[3], low.data[2], low.data[1], low.data[0]);
+    }
 };
 
 template<>
@@ -674,8 +832,24 @@ struct backend_ops<avx2_backend, int16_t, 16> {
     static reg_type bitwise_not(reg_type a) { return _mm256_xor_si256(a, _mm256_set1_epi32(-1)); }
     static reg_type bitwise_andnot(reg_type a, reg_type b) { return _mm256_andnot_si256(b, a); }
 
+    static reg_type bitwise_andnot(reg_type a, reg_type b) { return _mm256_andnot_si256(b, a); }
+
     static reg_type shift_left(reg_type a, int count) { return _mm256_slli_epi16(a, count); }
     static reg_type shift_right(reg_type a, int count) { return _mm256_srai_epi16(a, count); } // Arithmetic
+
+    // Split/Merge
+    static typename avx2_traits<int16_t, 8>::reg_type get_low(reg_type a) {
+        return _mm256_castsi256_si128(a);
+    }
+
+    static typename avx2_traits<int16_t, 8>::reg_type get_high(reg_type a) {
+        return _mm256_extracti128_si256(a, 1);
+    }
+
+    static reg_type combine(typename avx2_traits<int16_t, 8>::reg_type low, typename avx2_traits<int16_t, 8>::reg_type high) {
+        __m256i temp = _mm256_castsi128_si256(low);
+        return _mm256_inserti128_si256(temp, high, 1);
+    }
 };
 
 //=============================================================================
@@ -831,6 +1005,30 @@ struct backend_ops<avx2_backend, int8_t, 16> {
         for(int i=0; i<16; ++i) tr[i] = ta[i] >> count;
         return _mm_loadu_si128((const __m128i*)tr);
     }
+
+    // Split/Merge
+    static typename avx2_traits<int8_t, 8>::reg_type get_low(reg_type a) {
+        scalar_register<int8_t, 8> res;
+        alignas(16) int8_t temp[16];
+        _mm_storeu_si128((__m128i*)temp, a);
+        for(int i=0; i<8; ++i) res.data[i] = temp[i];
+        return res;
+    }
+
+    static typename avx2_traits<int8_t, 8>::reg_type get_high(reg_type a) {
+        scalar_register<int8_t, 8> res;
+        alignas(16) int8_t temp[16];
+        _mm_storeu_si128((__m128i*)temp, a);
+        for(int i=0; i<8; ++i) res.data[i] = temp[8+i];
+        return res;
+    }
+
+    static reg_type combine(typename avx2_traits<int8_t, 8>::reg_type low, typename avx2_traits<int8_t, 8>::reg_type high) {
+        return _mm_set_epi8(high.data[7], high.data[6], high.data[5], high.data[4],
+                            high.data[3], high.data[2], high.data[1], high.data[0],
+                            low.data[7], low.data[6], low.data[5], low.data[4],
+                            low.data[3], low.data[2], low.data[1], low.data[0]);
+    }
 };
 
 template<>
@@ -905,6 +1103,30 @@ struct backend_ops<avx2_backend, uint8_t, 16> {
         __m128i mask = _mm_set1_epi8((unsigned char)(0xFF) >> count);
         __m128i s = _mm_srli_epi16(a, count);
         return _mm_and_si128(s, mask);
+    }
+
+    // Split/Merge
+    static typename avx2_traits<uint8_t, 8>::reg_type get_low(reg_type a) {
+        scalar_register<uint8_t, 8> res;
+        alignas(16) uint8_t temp[16];
+        _mm_storeu_si128((__m128i*)temp, a);
+        for(int i=0; i<8; ++i) res.data[i] = temp[i];
+        return res;
+    }
+
+    static typename avx2_traits<uint8_t, 8>::reg_type get_high(reg_type a) {
+        scalar_register<uint8_t, 8> res;
+        alignas(16) uint8_t temp[16];
+        _mm_storeu_si128((__m128i*)temp, a);
+        for(int i=0; i<8; ++i) res.data[i] = temp[8+i];
+        return res;
+    }
+
+    static reg_type combine(typename avx2_traits<uint8_t, 8>::reg_type low, typename avx2_traits<uint8_t, 8>::reg_type high) {
+        return _mm_set_epi8(high.data[7], high.data[6], high.data[5], high.data[4],
+                            high.data[3], high.data[2], high.data[1], high.data[0],
+                            low.data[7], low.data[6], low.data[5], low.data[4],
+                            low.data[3], low.data[2], low.data[1], low.data[0]);
     }
 };
 
@@ -994,6 +1216,22 @@ struct backend_ops<avx2_backend, int8_t, 32> {
     static reg_type bitwise_xor(reg_type a, reg_type b) { return _mm256_xor_si256(a, b); }
     static reg_type bitwise_not(reg_type a) { return _mm256_xor_si256(a, _mm256_set1_epi32(-1)); }
     static reg_type bitwise_andnot(reg_type a, reg_type b) { return _mm256_andnot_si256(b, a); }
+
+    // Shift not standard for int8 on AVX
+
+    // Split/Merge
+    static typename avx2_traits<int8_t, 16>::reg_type get_low(reg_type a) {
+        return _mm256_castsi256_si128(a);
+    }
+
+    static typename avx2_traits<int8_t, 16>::reg_type get_high(reg_type a) {
+        return _mm256_extracti128_si256(a, 1);
+    }
+
+    static reg_type combine(typename avx2_traits<int8_t, 16>::reg_type low, typename avx2_traits<int8_t, 16>::reg_type high) {
+        __m256i temp = _mm256_castsi128_si256(low);
+        return _mm256_inserti128_si256(temp, high, 1);
+    }
 
     // Shift Operations - AVX2 does NOT support per-element vector shifts for 8-bit.
     // It only supports 16/32/64 bit shifts.
@@ -1164,6 +1402,27 @@ struct backend_ops<avx2_backend, double, 2> {
         #else
             return _mm_add_pd(_mm_mul_pd(a, b), c);
         #endif
+    }
+
+    // Split/Merge
+    static typename avx2_traits<double, 1>::reg_type get_low(reg_type a) {
+        scalar_register<double, 1> res;
+        alignas(16) double temp[2];
+        _mm_storeu_pd(temp, a);
+        res.data[0] = temp[0];
+        return res;
+    }
+
+    static typename avx2_traits<double, 1>::reg_type get_high(reg_type a) {
+        scalar_register<double, 1> res;
+        alignas(16) double temp[2];
+        _mm_storeu_pd(temp, a);
+        res.data[0] = temp[1];
+        return res;
+    }
+
+    static reg_type combine(typename avx2_traits<double, 1>::reg_type low, typename avx2_traits<double, 1>::reg_type high) {
+         return _mm_set_pd(high.data[0], low.data[0]);
     }
 };
 
