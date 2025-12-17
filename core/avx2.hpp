@@ -142,6 +142,13 @@ struct backend_ops<avx2_backend, float, 4> {
             return _mm_add_ps(_mm_mul_ps(a, b), c);
         #endif
     }
+
+    template<typename IntT>
+    static typename avx2_traits<IntT, 4>::reg_type convert_to_int(reg_type a) {
+        // Only 32-bit int supported for N=4 float
+        static_assert(sizeof(IntT) == 4, "Only 32-bit integers supported for conversion from float32x4");
+        return _mm_cvttps_epi32(a);
+    }
 };
 
 template<>
@@ -269,6 +276,10 @@ struct backend_ops<avx2_backend, int32_t, 4> {
 
     static reg_type shift_left(reg_type a, int count) { return _mm_slli_epi32(a, count); }
     static reg_type shift_right(reg_type a, int count) { return _mm_srai_epi32(a, count); } // Arithmetic
+
+    static __m128 convert_to_float(reg_type a) {
+        return _mm_cvtepi32_ps(a);
+    }
 };
 
 template<>
@@ -328,6 +339,21 @@ struct backend_ops<avx2_backend, uint32_t, 4> {
 
     static reg_type shift_left(reg_type a, int count) { return _mm_slli_epi32(a, count); }
     static reg_type shift_right(reg_type a, int count) { return _mm_srli_epi32(a, count); } // Logical
+
+    static __m128 convert_to_float(reg_type a) {
+        // SSE2 doesn't have unsigned int -> float. Use 64-bit promotion.
+        // Or simpler hack: if < 0 (high bit set), add 2^32
+        // Since N=4, we can do it component-wise or with logic.
+        // Let's use the standard "magic number" / "half-shift" trick or just _mm_cvtepi32_ps + adjustment
+        
+        __m128 f = _mm_cvtepi32_ps(a); // Convert as signed
+        
+        // Create mask for elements where MSB was set (so they were treated as negative)
+        __m128i mask = _mm_cmplt_epi32(a, _mm_setzero_si128()); 
+        __m128 adjustment = _mm_and_ps(_mm_castsi128_ps(mask), _mm_set1_ps(4294967296.0f));
+        
+        return _mm_add_ps(f, adjustment);
+    }
 };
 
 template<>
