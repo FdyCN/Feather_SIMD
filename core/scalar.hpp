@@ -11,6 +11,7 @@
 #include "base.hpp"
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace tiny_simd {
 

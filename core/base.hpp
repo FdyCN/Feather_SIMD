@@ -16,6 +16,7 @@
 #include <cassert>
 #include <cmath>
 #include <algorithm>
+#include <limits>
 
 // C++11 compatibility check
 #if __cplusplus < 201103L
