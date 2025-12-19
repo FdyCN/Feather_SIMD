@@ -47,6 +47,10 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
     # MSVC 不支持 /std:c++11，最低是 /std:c++14
     # MSVC 2015+ 默认就是 C++14 兼容模式
     add_compile_options(/std:c++14)
+    # 修复 MSVC 的 __cplusplus 宏值问题
+    # 默认情况下 MSVC 的 __cplusplus 返回 199711L (C++98)
+    # 添加 /Zc:__cplusplus 让宏正确反映实际使用的标准版本
+    add_compile_options(/Zc:__cplusplus)
 endif()
 
 # SIMD指令集检测和启用
