@@ -331,7 +331,31 @@ struct backend_ops<avx2_backend, float, 4> {
     static typename avx2_traits<IntT, 4>::reg_type convert_to_int(reg_type a) {
         // Only 32-bit int supported for N=4 float
         static_assert(sizeof(IntT) == 4, "Only 32-bit integers supported for conversion from float32x4");
-        return _mm_cvttps_epi32(a);
+        
+        if (std::is_same<IntT, int32_t>::value) {
+            // Signed int32 conversion - direct
+            return _mm_cvttps_epi32(a);
+        } else {
+            // Unsigned uint32 conversion - needs special handling for values >= 2^31
+            // Strategy:
+            // 1. Check which values are >= 2^31
+            // 2. For values >= 2^31: subtract 2^31, convert, then add 2^31 back (flip sign bit)
+            // 3. For values < 2^31: direct convert
+            
+            __m128 threshold = _mm_set1_ps(2147483648.0f);  // 2^31
+            __m128 mask_ge = _mm_cmpge_ps(a, threshold);
+            
+            // For values >= 2^31, subtract threshold before conversion
+            __m128 adjusted = _mm_sub_ps(a, _mm_and_ps(mask_ge, threshold));
+            
+            // Convert to signed int32
+            __m128i converted = _mm_cvttps_epi32(adjusted);
+            
+            // For values that were >= 2^31, set the sign bit (add 2^31 as unsigned)
+            __m128i sign_bit = _mm_and_si128(_mm_castps_si128(mask_ge), _mm_set1_epi32(0x80000000));
+            
+            return _mm_or_si128(converted, sign_bit);
+        }
     }
 
     // Split/Merge
