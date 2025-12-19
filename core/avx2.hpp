@@ -563,26 +563,24 @@ struct backend_ops<avx2_backend, uint32_t, 4> {
     static reg_type shift_right(reg_type a, int count) { return _mm_srli_epi32(a, count); } // Logical
 
     static __m128 convert_to_float(reg_type a) {
-        // Correct conversion for range [0, UINT32_MAX]
-        // If val >= 2^31, subtract 2^31, convert to int, then add 2^31 back (flip sign bit).
-        // Check if value >= 2^31 (approx 2.14748e9)
-        __m128 threshold = _mm_set1_ps(2147483648.0f);
-        __m128 mask_ge_threshold = _mm_cmpge_ps(a, threshold);
-
-        // For values >= threshold, subtract threshold
-        __m128 shifted = _mm_sub_ps(a, threshold);
+        // Correct conversion for uint32 [0, UINT32_MAX] to float
+        // Strategy: 
+        // 1. Check which values are >= 2^31 (sign bit set for unsigned interpretation)
+        // 2. For values < 2^31: direct convert as signed int
+        // 3. For values >= 2^31: convert as signed (becomes negative), then add 2^32
         
-        // Select original or shifted based on mask
-        __m128 val_to_convert = _mm_blendv_ps(a, shifted, mask_ge_threshold);
-
-        // Convert to int32 (signed)
-        __m128i converted = _mm_cvtps_epi32(val_to_convert);
-
-        // For values that were >= threshold, flip the sign bit (add 2^31) to make them unsigned large values
-        // 0x80000000 is -2^31 in signed int32, which is correct bit pattern for 2^31 in uint32
-        __m128i offset = _mm_castps_si128(_mm_and_ps(mask_ge_threshold, _mm_castsi128_ps(_mm_set1_epi32(0x80000000))));
+        // Create mask for values with sign bit set (>= 2^31 when interpreted as unsigned)
+        __m128i sign_bit_mask = _mm_srai_epi32(a, 31); // Arithmetic shift creates 0xFFFFFFFF or 0x00000000
         
-        return _mm_xor_si128(converted, offset); // XOR with 0x80000000 to flip MSB if needed
+        // Convert directly as signed int32 to float
+        __m128 as_signed_float = _mm_cvtepi32_ps(a);
+        
+        // For values that had sign bit set, they became negative floats
+        // Add 2^32 to correct them: negative value + 2^32 = correct unsigned value
+        // We use: if sign bit was set, add 2^32 (0x1.0p32f)
+        __m128 correction = _mm_and_ps(_mm_castsi128_ps(sign_bit_mask), _mm_set1_ps(4294967296.0f)); // 2^32
+        
+        return _mm_add_ps(as_signed_float, correction);
     }
 
     static typename avx2_traits<int32_t, 4>::reg_type convert_to_signed(reg_type a) { return a; }

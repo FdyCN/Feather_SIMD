@@ -149,8 +149,12 @@ TEST_F(Float2NeonTest, MemoryOperations) {
 
 TEST_F(Float2NeonTest, SIMDOptimizationCheck) {
     // 验证SIMD优化标志
+    #ifdef TINY_SIMD_ARM_NEON
     EXPECT_TRUE(vec2f::is_simd_optimized);
     std::cout << "vec2f SIMD optimized: " << vec2f::is_simd_optimized << std::endl;
+    #else
+    GTEST_SKIP() << "NEON not available on this platform";
+    #endif
 }
 
 TEST_F(Float2NeonTest, LinearInterpolation) {
