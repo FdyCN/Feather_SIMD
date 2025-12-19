@@ -25,10 +25,24 @@ if(TINY_SIMD_WITH_OPENCV AND OpenCV_FOUND)
 endif()
 
 # 统一设置输出目录，方便直接运行
-set_target_properties(tiny_simd_unit_tests
-    PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/test
-)
+# MSVC 不支持 C++11，最低是 C++14；其他编译器使用 C++11
+if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+    set_target_properties(tiny_simd_unit_tests
+        PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/test
+            CXX_STANDARD 14
+            CXX_STANDARD_REQUIRED ON
+            CXX_EXTENSIONS OFF
+    )
+else()
+    set_target_properties(tiny_simd_unit_tests
+        PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/test
+            CXX_STANDARD 11
+            CXX_STANDARD_REQUIRED ON
+            CXX_EXTENSIONS OFF
+    )
+endif()
 
 # 注册到 CTest，默认运行全部测试用例
 add_test(NAME tiny_simd_unit_tests COMMAND tiny_simd_unit_tests)
