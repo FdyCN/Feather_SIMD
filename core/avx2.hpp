@@ -336,31 +336,22 @@ struct backend_ops<avx2_backend, float, 4> {
 
     // Split/Merge
     static typename avx2_traits<float, 2>::reg_type get_low(reg_type a) {
-        scalar_register<float, 2> res;
-        _mm_storeu_ps(res.data, a); // Stores 4 floats, but scalar reg is size 2. We overwrite stack or need careful store?
-        // Wait, storeu_ps writes 16 bytes. scalar_register<float, 2> is 8 bytes.
-        // Stack corruption risk if we write directly to res.data!
-        alignas(16) float temp[4];
-        _mm_storeu_ps(temp, a);
-        res.data[0] = temp[0];
-        res.data[1] = temp[1];
-        return res;
+        // Return low half. Since __m128 is synonymous with float, 4 we just return it?
+        // No, reg_type for float, 2 is __m128 too (SSE).
+        // But conceptually it holds 2 floats.
+        return a;
     }
 
     static typename avx2_traits<float, 2>::reg_type get_high(reg_type a) {
-        scalar_register<float, 2> res;
-        alignas(16) float temp[4];
-        _mm_storeu_ps(temp, a);
-        res.data[0] = temp[2];
-        res.data[1] = temp[3];
-        return res;
+        // Return high half.
+        // Move high to low.
+        return _mm_movehl_ps(a, a);
     }
     
     static reg_type combine(typename avx2_traits<float, 2>::reg_type low, typename avx2_traits<float, 2>::reg_type high) {
-         // Load from scalar regs
-         // We can use _mm_set_ps(h1, h0, l1, l0) -> arguments are reversed usually?
-         // _mm_set_ps(e3, e2, e1, e0)
-         return _mm_set_ps(high.data[1], high.data[0], low.data[1], low.data[0]);
+         // low has data in [0,1], high has data in [0,1].
+         // We want result: low[0], low[1], high[0], high[1]
+         return _mm_movelh_ps(low, high);
     }
 };
 
@@ -496,25 +487,20 @@ struct backend_ops<avx2_backend, int32_t, 4> {
 
     // Split/Merge
     static typename avx2_traits<int32_t, 2>::reg_type get_low(reg_type a) {
-        scalar_register<int32_t, 2> res;
-        alignas(16) int32_t temp[4];
-        _mm_storeu_si128((__m128i*)temp, a);
-        res.data[0] = temp[0];
-        res.data[1] = temp[1];
-        return res;
+        // Return the low 64 bits (2 int32s) as __m128i
+        return a;
     }
 
     static typename avx2_traits<int32_t, 2>::reg_type get_high(reg_type a) {
-        scalar_register<int32_t, 2> res;
-        alignas(16) int32_t temp[4];
-        _mm_storeu_si128((__m128i*)temp, a);
-        res.data[0] = temp[2];
-        res.data[1] = temp[3];
-        return res;
+        // Shift high 64 bits to low position
+        return _mm_bsrli_si128(a, 8);
     }
 
     static reg_type combine(typename avx2_traits<int32_t, 2>::reg_type low, typename avx2_traits<int32_t, 2>::reg_type high) {
-        return _mm_set_epi32(high.data[1], high.data[0], low.data[1], low.data[0]);
+        // Combine two __m128i (each conceptually holding 2 int32s)
+        // low holds 2 values in lower 64 bits, high holds 2 values in lower 64 bits
+        // Result: low[0], low[1], high[0], high[1]
+        return _mm_unpacklo_epi64(low, high);
     }
 };
 
@@ -611,25 +597,20 @@ struct backend_ops<avx2_backend, uint32_t, 4> {
 
     // Split/Merge
     static typename avx2_traits<uint32_t, 2>::reg_type get_low(reg_type a) {
-        scalar_register<uint32_t, 2> res;
-        alignas(16) uint32_t temp[4];
-        _mm_storeu_si128((__m128i*)temp, a);
-        res.data[0] = temp[0];
-        res.data[1] = temp[1];
-        return res;
+        return a;
     }
 
     static typename avx2_traits<uint32_t, 2>::reg_type get_high(reg_type a) {
-        scalar_register<uint32_t, 2> res;
-        alignas(16) uint32_t temp[4];
-        _mm_storeu_si128((__m128i*)temp, a);
-        res.data[0] = temp[2];
-        res.data[1] = temp[3];
-        return res;
+        // Shift high 64 bits to low position
+        return _mm_bsrli_si128(a, 8);
     }
 
     static reg_type combine(typename avx2_traits<uint32_t, 2>::reg_type low, typename avx2_traits<uint32_t, 2>::reg_type high) {
-        return _mm_set_epi32(high.data[1], high.data[0], low.data[1], low.data[0]);
+        // low: L0 L1 x x
+        // high: H0 H1 x x
+        // Result: L0 L1 H0 H1
+        // _mm_unpacklo_epi64(low, high)
+        return _mm_unpacklo_epi64(low, high);
     }
 };
 
