@@ -44,8 +44,9 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
         /wd4100  # unreferenced formal parameter
         /wd4101  # unreferenced local variable
     )
-    # 确保 MSVC 使用 C++11
-    add_compile_options(/std:c++11)
+    # MSVC 不支持 /std:c++11，最低是 /std:c++14
+    # MSVC 2015+ 默认就是 C++14 兼容模式
+    add_compile_options(/std:c++14)
 endif()
 
 # SIMD指令集检测和启用
