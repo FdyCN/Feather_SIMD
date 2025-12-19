@@ -16,10 +16,18 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# 编译选项
-set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DDEBUG")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -DNDEBUG")
+# 编译选项 - 分平台设置
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    # GCC/Clang 编译选项
+    set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -DNDEBUG")
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+    # MSVC 编译选项
+    set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi /DDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 /DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/O2 /Zi /DNDEBUG")
+endif()
 
 # 警告选项
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -36,6 +44,8 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
         /wd4100  # unreferenced formal parameter
         /wd4101  # unreferenced local variable
     )
+    # 确保 MSVC 使用 C++11
+    add_compile_options(/std:c++11)
 endif()
 
 # SIMD指令集检测和启用
@@ -73,34 +83,55 @@ function(enable_simd_instructions)
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64|i686")
         message(STATUS "Detected x86 processor, checking SIMD support")
 
-        # 检测AVX2
-        check_cxx_compiler_flag("-mavx2" COMPILER_SUPPORTS_AVX2)
-        if(COMPILER_SUPPORTS_AVX2)
-            message(STATUS "AVX2 support detected")
-            add_compile_options(-mavx2)
-            add_compile_definitions(TINY_SIMD_X86_AVX2)
-        else()
-            # 检测AVX
-            check_cxx_compiler_flag("-mavx" COMPILER_SUPPORTS_AVX)
-            if(COMPILER_SUPPORTS_AVX)
-                message(STATUS "AVX support detected")
-                add_compile_options(-mavx)
-                add_compile_definitions(TINY_SIMD_X86_AVX)
+        # 根据编译器选择SIMD标志
+        if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+            # MSVC 使用 /arch: 标志
+            # 注意：x64 默认支持 SSE2，所以只需要检测 AVX/AVX2
+            check_cxx_compiler_flag("/arch:AVX2" COMPILER_SUPPORTS_AVX2)
+            if(COMPILER_SUPPORTS_AVX2)
+                message(STATUS "AVX2 support detected")
+                add_compile_options(/arch:AVX2)
+                add_compile_definitions(TINY_SIMD_X86_AVX2)
             else()
-                # 检测SSE2 (x86_64默认支持)
-                check_cxx_compiler_flag("-msse2" COMPILER_SUPPORTS_SSE2)
-                if(COMPILER_SUPPORTS_SSE2)
-                    message(STATUS "SSE2 support detected")
-                    add_compile_options(-msse2)
+                check_cxx_compiler_flag("/arch:AVX" COMPILER_SUPPORTS_AVX)
+                if(COMPILER_SUPPORTS_AVX)
+                    message(STATUS "AVX support detected")
+                    add_compile_options(/arch:AVX)
+                    add_compile_definitions(TINY_SIMD_X86_AVX)
+                else()
+                    # x64 MSVC 默认启用 SSE2
+                    message(STATUS "Using default SSE2 support (x64 default)")
                     add_compile_definitions(TINY_SIMD_X86_SSE)
                 endif()
             endif()
-        endif()
+        else()
+            # GCC/Clang 使用 -m 标志
+            check_cxx_compiler_flag("-mavx2" COMPILER_SUPPORTS_AVX2)
+            if(COMPILER_SUPPORTS_AVX2)
+                message(STATUS "AVX2 support detected")
+                add_compile_options(-mavx2)
+                add_compile_definitions(TINY_SIMD_X86_AVX2)
+            else()
+                check_cxx_compiler_flag("-mavx" COMPILER_SUPPORTS_AVX)
+                if(COMPILER_SUPPORTS_AVX)
+                    message(STATUS "AVX support detected")
+                    add_compile_options(-mavx)
+                    add_compile_definitions(TINY_SIMD_X86_AVX)
+                else()
+                    check_cxx_compiler_flag("-msse2" COMPILER_SUPPORTS_SSE2)
+                    if(COMPILER_SUPPORTS_SSE2)
+                        message(STATUS "SSE2 support detected")
+                        add_compile_options(-msse2)
+                        add_compile_definitions(TINY_SIMD_X86_SSE)
+                    endif()
+                endif()
+            endif()
 
-        # 检测SSE4.1 (用于某些优化)
-        check_cxx_compiler_flag("-msse4.1" COMPILER_SUPPORTS_SSE41)
-        if(COMPILER_SUPPORTS_SSE41)
-            add_compile_options(-msse4.1)
+            # 检测SSE4.1 (用于某些优化) - 仅 GCC/Clang
+            check_cxx_compiler_flag("-msse4.1" COMPILER_SUPPORTS_SSE41)
+            if(COMPILER_SUPPORTS_SSE41)
+                add_compile_options(-msse4.1)
+            endif()
         endif()
     endif()
 endfunction()
