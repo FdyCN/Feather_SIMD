@@ -702,6 +702,23 @@ struct backend_ops<avx2_backend, int16_t, 8> {
         return _mm256_cvtepi16_epi32(a);
     }
 
+    static typename avx2_traits<int8_t, 8>::reg_type convert_narrow(reg_type a) {
+        // Truncate logic: mask -> packus (signed 16 -> unsigned 8 sat, but mask keeps it in range 0-255 effectively truncating)
+        __m128i masked = _mm_and_si128(a, _mm_set1_epi16(0xFF));
+        __m128i packed = _mm_packus_epi16(masked, _mm_setzero_si128()); // Pack with zero to fill high half
+        scalar_register<int8_t, 8> res;
+        _mm_storel_epi64((__m128i*)res.data, packed);
+        return res;
+    }
+
+    static typename avx2_traits<int8_t, 8>::reg_type convert_narrow_sat(reg_type a) {
+        // Saturation logic: packs (signed 16 -> signed 8 sat)
+        __m128i packed = _mm_packs_epi16(a, _mm_setzero_si128());
+        scalar_register<int8_t, 8> res;
+        _mm_storel_epi64((__m128i*)res.data, packed);
+        return res;
+    }
+
     // Split/Merge
     static typename avx2_traits<int16_t, 4>::reg_type get_low(reg_type a) {
         scalar_register<int16_t, 4> res;
@@ -786,6 +803,27 @@ struct backend_ops<avx2_backend, uint16_t, 8> {
 
     static typename avx2_traits<uint32_t, 8>::reg_type convert_widen(reg_type a) {
         return _mm256_cvtepu16_epi32(a);
+    }
+
+    static typename avx2_traits<uint8_t, 8>::reg_type convert_narrow(reg_type a) {
+        // Truncate logic: same as int16
+        __m128i masked = _mm_and_si128(a, _mm_set1_epi16(0xFF));
+        __m128i packed = _mm_packus_epi16(masked, _mm_setzero_si128());
+        scalar_register<uint8_t, 8> res;
+        _mm_storel_epi64((__m128i*)res.data, packed);
+        return res;
+    }
+
+    static typename avx2_traits<uint8_t, 8>::reg_type convert_narrow_sat(reg_type a) {
+        // Saturation logic: uint16 -> uint8 (0-255)
+        // Since packus treats input as signed, 40000 (0x9C40) is negative -> 0. logic fails for large uint16.
+        // Must clamp to 255 first.
+        __m128i clamped = _mm_min_epu16(a, _mm_set1_epi16(255));
+        // Now generic packus works as values are [0, 255] which are positive in signed 16-bit
+        __m128i packed = _mm_packus_epi16(clamped, _mm_setzero_si128());
+        scalar_register<uint8_t, 8> res;
+        _mm_storel_epi64((__m128i*)res.data, packed);
+        return res;
     }
 
     static typename avx2_traits<int16_t, 8>::reg_type convert_to_signed(reg_type a) { return a; }
