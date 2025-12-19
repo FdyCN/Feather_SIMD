@@ -34,6 +34,9 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
             CXX_STANDARD_REQUIRED ON
             CXX_EXTENSIONS OFF
     )
+    # Visual Studio generator 不总是自动应用 CXX_STANDARD
+    # 显式添加编译选项确保生效  
+    target_compile_options(tiny_simd_unit_tests PRIVATE /std:c++14)
 else()
     set_target_properties(tiny_simd_unit_tests
         PROPERTIES
