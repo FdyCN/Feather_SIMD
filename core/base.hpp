@@ -20,6 +20,9 @@
 
 // C++11 compatibility check
 #if __cplusplus < 201103L
+#define __PRINT_MACRO(x) #x
+#define PRINT_MARCO(x) #x"=" __PRINT_MACRO(x)
+#pragma message(PRINT_MARCO(__cplusplus))
     #error "Tiny SIMD Engine requires C++11 or later"
 #endif
 
