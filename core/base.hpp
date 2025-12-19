@@ -194,10 +194,10 @@ struct avx2_has_advantage {
         (std::is_same<T, double>::value && (N == 4 || N == 2)) ||
         // int32/uint32: N=8 (AVX) or N=4 (SSE)
         ((std::is_same<T, int32_t>::value || std::is_same<T, uint32_t>::value) && (N == 8 || N == 4)) ||
-        // int16/uint16: N=16 (AVX) or N=8 (SSE)
-        ((std::is_same<T, int16_t>::value || std::is_same<T, uint16_t>::value) && (N == 16 || N == 8)) ||
-        // int8/uint8: N=32 (AVX) or N=16 (SSE)
-        ((std::is_same<T, int8_t>::value || std::is_same<T, uint8_t>::value) && (N == 32 || N == 16));
+        // int16/uint16: N=16 (AVX) or N=8 (SSE) or N=4 (Scalar fallback but defined in AVX2)
+        ((std::is_same<T, int16_t>::value || std::is_same<T, uint16_t>::value) && (N == 16 || N == 8 || N == 4)) ||
+        // int8/uint8: N=32 (AVX) or N=16 (SSE) or N=8 (Scalar fallback but defined in AVX2)
+        ((std::is_same<T, int8_t>::value || std::is_same<T, uint8_t>::value) && (N == 32 || N == 16 || N == 8));
 #else
     static constexpr bool value = false;
 #endif
