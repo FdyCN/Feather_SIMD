@@ -83,21 +83,175 @@ template<> struct avx2_traits<uint8_t, 16> { using reg_type = __m128i; };
 
 //=============================================================================
 // Scalar Fallback Traits (for get_low on 128-bit vectors)
-//=============================================================================
-template<> struct avx2_traits<float, 2> { using reg_type = scalar_register<float, 2>; };
+// Modified: N=2 vectors now use SSE registers for SIMD optimization consistency
+template<> struct avx2_traits<float, 2> { using reg_type = __m128; };
 template<> struct avx2_traits<double, 1> { using reg_type = scalar_register<double, 1>; };
-template<> struct avx2_traits<int32_t, 2> { using reg_type = scalar_register<int32_t, 2>; };
-template<> struct avx2_traits<uint32_t, 2> { using reg_type = scalar_register<uint32_t, 2>; };
+template<> struct avx2_traits<int32_t, 2> { using reg_type = __m128i; };
+template<> struct avx2_traits<uint32_t, 2> { using reg_type = __m128i; };
 template<> struct avx2_traits<int16_t, 4> { using reg_type = scalar_register<int16_t, 4>; };
 template<> struct avx2_traits<uint16_t, 4> { using reg_type = scalar_register<uint16_t, 4>; };
 template<> struct avx2_traits<int8_t, 8> { using reg_type = scalar_register<int8_t, 8>; };
 template<> struct avx2_traits<uint8_t, 8> { using reg_type = scalar_register<uint8_t, 8>; };
 
 // Fallback ops inheritance
-template<> struct backend_ops<avx2_backend, float, 2> : backend_ops<scalar_backend, float, 2> {};
+// template<> struct backend_ops<avx2_backend, float, 2> : backend_ops<scalar_backend, float, 2> {};
 template<> struct backend_ops<avx2_backend, double, 1> : backend_ops<scalar_backend, double, 1> {};
-template<> struct backend_ops<avx2_backend, int32_t, 2> : backend_ops<scalar_backend, int32_t, 2> {};
-template<> struct backend_ops<avx2_backend, uint32_t, 2> : backend_ops<scalar_backend, uint32_t, 2> {};
+// template<> struct backend_ops<avx2_backend, int32_t, 2> : backend_ops<scalar_backend, int32_t, 2> {};
+// template<> struct backend_ops<avx2_backend, uint32_t, 2> : backend_ops<scalar_backend, uint32_t, 2> {};
+
+//=============================================================================
+// Float Operations (floatx2) - SSE
+//=============================================================================
+template<>
+struct backend_ops<avx2_backend, float, 2> {
+    using reg_type = __m128;
+
+    static reg_type zero() { return _mm_setzero_ps(); }
+    static reg_type set1(float scalar) { return _mm_set1_ps(scalar); }
+    static reg_type load(const float* ptr) {
+        // Load 2 floats. _mm_loadu_ps loads 4, might over-read. use loadl_pi or set_ps
+        return _mm_set_ps(0, 0, ptr[1], ptr[0]);
+    }
+    static reg_type load_aligned(const float* ptr) { return load(ptr); } // No aligned load for 2 floats usually
+
+    static reg_type load_from_initializer(std::initializer_list<float> init) {
+        float data[2] = {0, 0};
+        auto it = init.begin();
+        if(it != init.end()) data[0] = *it++;
+        if(it != init.end()) data[1] = *it++;
+        return _mm_set_ps(0, 0, data[1], data[0]);
+    }
+
+    static void store(float* ptr, reg_type reg) {
+        _mm_store_ss(ptr, reg);
+        // Extract second float.
+        // Needs shuffle or extract logic
+        alignas(16) float temp[4];
+        _mm_storeu_ps(temp, reg);
+        ptr[1] = temp[1];
+    }
+    static void store_aligned(float* ptr, reg_type reg) { store(ptr, reg); }
+
+    static float extract(reg_type reg, size_t index) {
+        alignas(16) float temp[4];
+        _mm_storeu_ps(temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return _mm_add_ps(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return _mm_sub_ps(a, b); }
+    static reg_type mul(reg_type a, reg_type b) { return _mm_mul_ps(a, b); }
+    static reg_type div(reg_type a, reg_type b) { return _mm_div_ps(a, b); }
+    static reg_type neg(reg_type a) { return _mm_xor_ps(a, _mm_set1_ps(-0.0f)); }
+
+    // Min/Max/Abs
+    static reg_type min(reg_type a, reg_type b) { return _mm_min_ps(a, b); }
+    static reg_type max(reg_type a, reg_type b) { return _mm_max_ps(a, b); }
+    static reg_type abs(reg_type a) {
+        static const __m128 sign_mask = _mm_castsi128_ps(_mm_set1_epi32(0x7FFFFFFF));
+        return _mm_and_ps(a, sign_mask);
+    }
+    
+    // Comparisons handled by base usually, but equal needed
+    static bool equal(reg_type a, reg_type b) {
+        __m128 cmp = _mm_cmpeq_ps(a, b);
+        int mask = _mm_movemask_ps(cmp);
+        return (mask & 3) == 3; // Low 2 bits must be set
+    }
+};
+
+//=============================================================================
+// Int32 Operations (int32x2) - SSE
+//=============================================================================
+template<>
+struct backend_ops<avx2_backend, int32_t, 2> {
+    using reg_type = __m128i;
+
+    static reg_type zero() { return _mm_setzero_si128(); }
+    static reg_type set1(int32_t scalar) { return _mm_set1_epi32(scalar); }
+    static reg_type load(const int32_t* ptr) {
+        // safe load 2 ints
+        return _mm_set_epi32(0, 0, ptr[1], ptr[0]);
+    }
+    static reg_type load_aligned(const int32_t* ptr) { return load(ptr); }
+    static reg_type load_from_initializer(std::initializer_list<int32_t> init) {
+        int32_t data[2] = {0, 0};
+        auto it = init.begin();
+        if(it != init.end()) data[0] = *it++;
+        if(it != init.end()) data[1] = *it++;
+        return _mm_set_epi32(0, 0, data[1], data[0]);
+    }
+
+    static void store(int32_t* ptr, reg_type reg) {
+        alignas(16) int32_t temp[4];
+        _mm_storeu_si128((__m128i*)temp, reg);
+        ptr[0] = temp[0];
+        ptr[1] = temp[1];
+    }
+    static void store_aligned(int32_t* ptr, reg_type reg) { store(ptr, reg); }
+
+    static int32_t extract(reg_type reg, size_t index) {
+        alignas(16) int32_t temp[4];
+        _mm_storeu_si128((__m128i*)temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return _mm_add_epi32(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return _mm_sub_epi32(a, b); }
+    static reg_type mul(reg_type a, reg_type b) { return _mm_mullo_epi32(a, b); }
+    static reg_type neg(reg_type a) { return _mm_sub_epi32(_mm_setzero_si128(), a); }
+    static reg_type bitwise_and(reg_type a, reg_type b) { return _mm_and_si128(a, b); }
+    static reg_type bitwise_or(reg_type a, reg_type b) { return _mm_or_si128(a, b); }
+    static reg_type bitwise_xor(reg_type a, reg_type b) { return _mm_xor_si128(a, b); }
+    static reg_type shift_left(reg_type a, int count) { return _mm_slli_epi32(a, count); }
+    static reg_type shift_right(reg_type a, int count) { return _mm_srai_epi32(a, count); }
+
+    static bool equal(reg_type a, reg_type b) {
+        __m128i cmp = _mm_cmpeq_epi32(a, b);
+        int mask = _mm_movemask_epi8(cmp);
+        // mask is 16 bits, one for each byte. lower 8 bits correspond to lower 2 ints (8 bytes)
+        return (mask & 0xFF) == 0xFF; // Low 2 ints must be equal
+    }
+};
+
+template<>
+struct backend_ops<avx2_backend, uint32_t, 2> {
+    using reg_type = __m128i;
+    // ... Implement minimal set or inherit/copy from int32 ...
+    // For brevity, mostly same as int32
+     static reg_type zero() { return _mm_setzero_si128(); }
+    static reg_type set1(uint32_t scalar) { return _mm_set1_epi32((int)scalar); }
+    static reg_type load(const uint32_t* ptr) { return _mm_set_epi32(0, 0, (int)ptr[1], (int)ptr[0]); }
+    static reg_type load_aligned(const uint32_t* ptr) { return load(ptr); }
+    static reg_type load_from_initializer(std::initializer_list<uint32_t> init) {
+        uint32_t data[2] = {0, 0};
+        auto it = init.begin();
+        if(it != init.end()) data[0] = *it++;
+        if(it != init.end()) data[1] = *it++;
+        return _mm_set_epi32(0, 0, (int)data[1], (int)data[0]);
+    }
+    static void store(uint32_t* ptr, reg_type reg) {
+        alignas(16) uint32_t temp[4];
+        _mm_storeu_si128((__m128i*)temp, reg);
+        ptr[0] = temp[0]; ptr[1] = temp[1];
+    }
+    
+    static uint32_t extract(reg_type reg, size_t index) {
+        alignas(16) uint32_t temp[4];
+        _mm_storeu_si128((__m128i*)temp, reg);
+        return temp[index];
+    }
+
+    static reg_type add(reg_type a, reg_type b) { return _mm_add_epi32(a, b); }
+    static reg_type sub(reg_type a, reg_type b) { return _mm_sub_epi32(a, b); }
+    static reg_type mul(reg_type a, reg_type b) { return _mm_mullo_epi32(a, b); }
+    static bool equal(reg_type a, reg_type b) {
+        __m128i cmp = _mm_cmpeq_epi32(a, b);
+        int mask = _mm_movemask_epi8(cmp);
+        return (mask & 0xFF) == 0xFF;
+    }
+    static void store_aligned(uint32_t* ptr, reg_type reg) { store(ptr, reg); }
+};
 template<> struct backend_ops<avx2_backend, int16_t, 4> : backend_ops<scalar_backend, int16_t, 4> {};
 template<> struct backend_ops<avx2_backend, uint16_t, 4> : backend_ops<scalar_backend, uint16_t, 4> {};
 template<> struct backend_ops<avx2_backend, int8_t, 8> : backend_ops<scalar_backend, int8_t, 8> {
@@ -112,10 +266,6 @@ template<> struct backend_ops<avx2_backend, uint8_t, 8> : backend_ops<scalar_bac
         return _mm_cvtepu8_epi16(x);
     }
 };
-
-//=============================================================================
-// Float Operations (float32x8)
-//=============================================================================
 
 //=============================================================================
 // Float Operations (float32x4) - SSE
@@ -214,6 +364,10 @@ struct backend_ops<avx2_backend, float, 4> {
     }
 };
 
+//=============================================================================
+// Float Operations (float32x8)
+//=============================================================================
+
 template<>
 struct backend_ops<avx2_backend, float, 8> {
     using reg_type = __m256;
@@ -273,10 +427,6 @@ struct backend_ops<avx2_backend, float, 8> {
         #endif
     }
 };
-
-//=============================================================================
-// Integer Operations (int32x8)
-//=============================================================================
 
 //=============================================================================
 // Integer Operations (int32x4 / uint32x4) - SSE
@@ -427,18 +577,26 @@ struct backend_ops<avx2_backend, uint32_t, 4> {
     static reg_type shift_right(reg_type a, int count) { return _mm_srli_epi32(a, count); } // Logical
 
     static __m128 convert_to_float(reg_type a) {
-        // SSE2 doesn't have unsigned int -> float. Use 64-bit promotion.
-        // Or simpler hack: if < 0 (high bit set), add 2^32
-        // Since N=4, we can do it component-wise or with logic.
-        // Let's use the standard "magic number" / "half-shift" trick or just _mm_cvtepi32_ps + adjustment
+        // Correct conversion for range [0, UINT32_MAX]
+        // If val >= 2^31, subtract 2^31, convert to int, then add 2^31 back (flip sign bit).
+        // Check if value >= 2^31 (approx 2.14748e9)
+        __m128 threshold = _mm_set1_ps(2147483648.0f);
+        __m128 mask_ge_threshold = _mm_cmpge_ps(a, threshold);
+
+        // For values >= threshold, subtract threshold
+        __m128 shifted = _mm_sub_ps(a, threshold);
         
-        __m128 f = _mm_cvtepi32_ps(a); // Convert as signed
+        // Select original or shifted based on mask
+        __m128 val_to_convert = _mm_blendv_ps(a, shifted, mask_ge_threshold);
+
+        // Convert to int32 (signed)
+        __m128i converted = _mm_cvtps_epi32(val_to_convert);
+
+        // For values that were >= threshold, flip the sign bit (add 2^31) to make them unsigned large values
+        // 0x80000000 is -2^31 in signed int32, which is correct bit pattern for 2^31 in uint32
+        __m128i offset = _mm_castps_si128(_mm_and_ps(mask_ge_threshold, _mm_castsi128_ps(_mm_set1_epi32(0x80000000))));
         
-        // Create mask for elements where MSB was set (so they were treated as negative)
-        __m128i mask = _mm_cmplt_epi32(a, _mm_setzero_si128()); 
-        __m128 adjustment = _mm_and_ps(_mm_castsi128_ps(mask), _mm_set1_ps(4294967296.0f));
-        
-        return _mm_add_ps(f, adjustment);
+        return _mm_xor_si128(converted, offset); // XOR with 0x80000000 to flip MSB if needed
     }
 
     static typename avx2_traits<int32_t, 4>::reg_type convert_to_signed(reg_type a) { return a; }
@@ -474,6 +632,10 @@ struct backend_ops<avx2_backend, uint32_t, 4> {
         return _mm_set_epi32(high.data[1], high.data[0], low.data[1], low.data[0]);
     }
 };
+
+//=============================================================================
+// Integer Operations (int32x8)
+//=============================================================================
 
 template<>
 struct backend_ops<avx2_backend, int32_t, 8> {
@@ -554,13 +716,11 @@ struct backend_ops<avx2_backend, int32_t, 8> {
     }
 };
 
-#endif // TINY_SIMD_X86_AVX2
 
 //=============================================================================
 // Integer Operations (uint32x8)
 //=============================================================================
 
-#ifdef TINY_SIMD_X86_AVX2
 template<>
 struct backend_ops<avx2_backend, uint32_t, 8> {
     using reg_type = __m256i;
@@ -631,10 +791,6 @@ struct backend_ops<avx2_backend, uint32_t, 8> {
         return _mm256_castsi256_si128(permuted);
     }
 };
-
-//=============================================================================
-// Integer Operations (int16x16)
-//=============================================================================
 
 //=============================================================================
 // Integer Operations (int16x8 / uint16x8) - SSE
@@ -859,6 +1015,10 @@ struct backend_ops<avx2_backend, uint16_t, 8> {
     }
 };
 
+//=============================================================================
+// Integer Operations (int16x16)
+//=============================================================================
+
 template<>
 struct backend_ops<avx2_backend, int16_t, 16> {
     using reg_type = __m256i;
@@ -1010,13 +1170,6 @@ struct backend_ops<avx2_backend, uint16_t, 16> {
     }
 };
 
-#endif // TINY_SIMD_X86_AVX2
-
-//=============================================================================
-// Integer Operations (int8x32)
-//=============================================================================
-
-#ifdef TINY_SIMD_X86_AVX2
 //=============================================================================
 // Integer Operations (int8x16 / uint8x16) - SSE
 //=============================================================================
@@ -1231,6 +1384,10 @@ struct backend_ops<avx2_backend, uint8_t, 16> {
                             low.data[3], low.data[2], low.data[1], low.data[0]);
     }
 };
+
+//=============================================================================
+// Integer Operations (int8x32)
+//=============================================================================
 
 template<>
 struct backend_ops<avx2_backend, int8_t, 32> {
@@ -1450,10 +1607,6 @@ struct backend_ops<avx2_backend, uint8_t, 32> {
 };
 
 //=============================================================================
-// Double Operations (doublex4)
-//=============================================================================
-
-//=============================================================================
 // Double Operations (doublex2) - SSE
 //=============================================================================
 
@@ -1534,6 +1687,10 @@ struct backend_ops<avx2_backend, double, 2> {
          return _mm_set_pd(high.data[0], low.data[0]);
     }
 };
+
+//=============================================================================
+// Double Operations (doublex4)
+//=============================================================================
 
 template<>
 struct backend_ops<avx2_backend, double, 4> {
