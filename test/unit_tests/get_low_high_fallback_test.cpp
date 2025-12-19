@@ -16,7 +16,7 @@ TEST_F(GetLowHighFallbackTest, ScalarBackendUint8x32) {
     vec<uint8_t, 32, scalar_backend> data;
     for (size_t i = 0; i < 32; ++i) {
         alignas(32) uint8_t temp[32];
-        for (size_t j = 0; j < 32; ++j) temp[j] = j;
+        for (size_t j = 0; j < 32; ++j) temp[j] = static_cast<uint8_t>(j);
         data = vec<uint8_t, 32, scalar_backend>(temp);
     }
 
@@ -41,7 +41,7 @@ TEST_F(GetLowHighFallbackTest, NeonBackendUint8x16) {
     // uint8_t with N=16 should use neon_backend
     vec<uint8_t, 16> data;
     alignas(16) uint8_t temp[16];
-    for (size_t i = 0; i < 16; ++i) temp[i] = i * 10;
+    for (size_t i = 0; i < 16; ++i) temp[i] = static_cast<uint8_t>(i * 10);
     data = vec<uint8_t, 16>(temp);
 
     // Should use NEON implementation from neon.hpp

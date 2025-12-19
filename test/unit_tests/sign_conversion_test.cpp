@@ -19,7 +19,7 @@ TEST(SignConversionTest, UInt32ToInt32_SameWidth) {
     EXPECT_EQ(s32_result[0], 0);
     EXPECT_EQ(s32_result[1], 1);
     EXPECT_EQ(s32_result[2], 2147483647);   // Max positive int32
-    EXPECT_EQ(s32_result[3], -2147483648);  // Wraps to min negative
+    EXPECT_EQ(s32_result[3], static_cast<int32_t>(-2147483648LL));  // Wraps to min negative
 
     #ifdef TINY_SIMD_ARM_NEON
     EXPECT_TRUE(s32_result.is_simd_optimized);
@@ -31,7 +31,7 @@ TEST(SignConversionTest, UInt32ToInt32_AllNegative) {
     vec<int32_t, 4> s32_result = convert_to_signed(u32_data);
 
     // All values > INT32_MAX wrap to negative
-    EXPECT_EQ(s32_result[0], -2147483648);
+    EXPECT_EQ(s32_result[0], static_cast<int32_t>(-2147483648LL));
     EXPECT_LT(s32_result[1], 0);  // Negative
     EXPECT_LT(s32_result[2], 0);  // Negative
     EXPECT_EQ(s32_result[3], -1);

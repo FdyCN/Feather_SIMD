@@ -132,7 +132,9 @@ TEST(ConversionTest, Int32ToFloat_Negative) {
 }
 
 TEST(ConversionTest, Int32ToFloat_LargeValues) {
-    vec<int32_t, 4> int_data{1000000, -1000000, 2147483647, -2147483648};
+    // Note: -2147483648 literal causes narrowing conversion warning in MSVC
+    // Use std::numeric_limits or explicit cast to avoid the issue
+    vec<int32_t, 4> int_data{1000000, -1000000, 2147483647, static_cast<int32_t>(-2147483648LL)};
     vec4f float_result = convert_to_float(int_data);
 
     EXPECT_FLOAT_EQ(float_result[0], 1000000.0f);
@@ -161,7 +163,8 @@ TEST(ConversionTest, UInt32ToFloat_Basic) {
 }
 
 TEST(ConversionTest, UInt32ToFloat_LargeValues) {
-    vec<uint32_t, 4> uint_data{0, 1000000, 4294967295, 2147483648};
+    // Use 'u' suffix for large unsigned literals to avoid narrowing conversion warnings in MSVC
+    vec<uint32_t, 4> uint_data{0, 1000000, 4294967295u, 2147483648u};
     vec4f float_result = convert_to_float(uint_data);
 
     EXPECT_FLOAT_EQ(float_result[0], 0.0f);

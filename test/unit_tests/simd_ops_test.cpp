@@ -42,13 +42,14 @@ TEST(SimdOpsTest, BitwiseXor) {
 }
 
 TEST(SimdOpsTest, BitwiseNot) {
-    vec4i a{0, -1, 0x55555555, static_cast<int32_t>(0xAAAAAAAA)};
+    // Use explicit casts for large hex literals in signed int context to avoid narrowing
+    vec4i a{0, -1, static_cast<int32_t>(0x55555555), static_cast<int32_t>(0xAAAAAAAA)};
     vec4i result = ~a;
 
     EXPECT_EQ(result[0], -1);
     EXPECT_EQ(result[1], 0);
     EXPECT_EQ(result[2], static_cast<int32_t>(0xAAAAAAAA));
-    EXPECT_EQ(result[3], 0x55555555);
+    EXPECT_EQ(result[3], static_cast<int32_t>(0x55555555));
 }
 
 TEST(SimdOpsTest, BitwiseAndNot) {
@@ -94,7 +95,8 @@ TEST(SimdOpsTest, ShiftRightSigned) {
 }
 
 TEST(SimdOpsTest, ShiftRightUnsigned) {
-    vec4ui a{4, 8, 0xFFFFFFFF, 0x80000000};
+    // Use 'u' suffix for large hex literals to avoid narrowing conversion in MSVC
+    vec4ui a{4, 8, 0xFFFFFFFFu, 0x80000000u};
     vec4ui result = a >> 2;
 
     EXPECT_EQ(result[0], 1u);
