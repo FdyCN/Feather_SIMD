@@ -721,24 +721,24 @@ fma(const vec<T, N, Backend>& a, const vec<T, N, Backend>& b, const vec<T, N, Ba
 
 // Unified interface for get_low - calls backend_ops
 template<typename T, size_t N, typename Backend = auto_backend>
-inline vec<T, N/2, Backend> get_low(const vec<T, N, Backend>& v) {
+inline auto get_low(const vec<T, N, Backend>& v) -> vec<T, N/2, typename vec<T, N, Backend>::backend_type> {
     static_assert(N % 2 == 0, "Vector size must be even for get_low");
     // Resolve auto_backend to actual backend type
     using actual_backend = typename vec<T, N, Backend>::backend_type;
     using ops = backend_ops<actual_backend, T, N>;
     auto low_reg = ops::get_low(v.reg());
-    return vec<T, N/2, Backend>(low_reg);
+    return vec<T, N/2, actual_backend>(low_reg);
 }
 
 // Unified interface for get_high - calls backend_ops
 template<typename T, size_t N, typename Backend = auto_backend>
-inline vec<T, N/2, Backend> get_high(const vec<T, N, Backend>& v) {
+inline auto get_high(const vec<T, N, Backend>& v) -> vec<T, N/2, typename vec<T, N, Backend>::backend_type> {
     static_assert(N % 2 == 0, "Vector size must be even for get_high");
     // Resolve auto_backend to actual backend type
     using actual_backend = typename vec<T, N, Backend>::backend_type;
     using ops = backend_ops<actual_backend, T, N>;
     auto high_reg = ops::get_high(v.reg());
-    return vec<T, N/2, Backend>(high_reg);
+    return vec<T, N/2, actual_backend>(high_reg);
 }
 
 //=============================================================================
